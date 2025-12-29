@@ -20,8 +20,8 @@
 │   └── writing.py
 └── services
     ├── ai_client.py
-    ├── contracts.py
-    ├── factory.py
+    ├── contracts.py    # service 接口契约（Protocol/ABC）
+    ├── factory.py      # 根据配置选择 Fake 或 Real
     ├── fake
     │   ├── help.py
     │   ├── __init__.py
@@ -32,3 +32,6 @@
     ├── kb_client.py
     ├── review_service.py
     └── writing_service.py
+
+
+# 添加目录结构，并先添加假接口，供后端可先调用AI agent端
