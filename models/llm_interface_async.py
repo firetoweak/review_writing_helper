@@ -21,6 +21,14 @@ class LLMConfig:
 
 def get_llm_config() -> LLMConfig:
     return LLMConfig(
+        base_url=settings.chatllm.base_url,
+        api_key=settings.chatllm.api_key or "EMPTY",
+        model=settings.chatllm.model,
+    )
+
+
+def get_vlm_config() -> LLMConfig:
+    return LLMConfig(
         base_url=settings.chatvlm.base_url,
         api_key=settings.chatvlm.api_key or "EMPTY",
         model=settings.chatvlm.model,
@@ -31,8 +39,12 @@ def is_llm_configured() -> bool:
     return bool(get_llm_config().base_url)
 
 
-def build_chat_model(*, streaming: bool) -> ChatOpenAI:
-    cfg = get_llm_config()
+def is_vlm_configured() -> bool:
+    return bool(get_vlm_config().base_url)
+
+
+def build_chat_model(*, streaming: bool, multimodal: bool = False) -> ChatOpenAI:
+    cfg = get_vlm_config() if multimodal else get_llm_config()
     return ChatOpenAI(
         model=cfg.model,
         base_url=cfg.base_url,

@@ -9,3 +9,7 @@ chatvlm:
   base_url:
   api_key:
   model:
+chatllm:
+  base_url:
+  api_key:
+  model:

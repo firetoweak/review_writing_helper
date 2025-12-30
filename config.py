@@ -29,8 +29,16 @@ class ChatVLMSettings:
 
 
 @dataclass(frozen=True)
+class ChatLLMSettings:
+    base_url: str = os.environ.get("CHATLLM_BASE_URL", "")
+    api_key: str = os.environ.get("CHATLLM_API_KEY", "")
+    model: str = os.environ.get("CHATLLM_MODEL", "")
+
+
+@dataclass(frozen=True)
 class Settings:
     chatvlm: ChatVLMSettings = ChatVLMSettings()
+    chatllm: ChatLLMSettings = ChatLLMSettings()
 
 
 settings = Settings()
