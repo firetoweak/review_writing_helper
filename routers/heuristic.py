@@ -4,7 +4,12 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from services.streaming import stream_json
-from services.writing_service import continue_heuristic, start_heuristic
+from services.writing_service import (
+    continue_heuristic,
+    heuristic_message_stream,
+    heuristic_start_stream,
+    start_heuristic,
+)
 
 
 router = APIRouter()
@@ -54,16 +59,16 @@ class HeuristicMessageRequest(BaseModel):
 @router.post("/api/heuristic-writing")
 async def heuristic_start(request: HeuristicRequest):
     payload = request.model_dump()
-    response = await start_heuristic(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(heuristic_start_stream(payload), media_type="application/x-ndjson")
+    response = await start_heuristic(payload)
     return response
 
 
 @router.post("/api/heuristic-writing/message")
 async def heuristic_message(request: HeuristicMessageRequest):
     payload = request.model_dump()
-    response = await continue_heuristic(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(heuristic_message_stream(payload), media_type="application/x-ndjson")
+    response = await continue_heuristic(payload)
     return response

@@ -4,7 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from services.streaming import stream_json
-from services.writing_service import merge_texts
+from services.writing_service import merge_texts, merge_texts_stream
 
 
 router = APIRouter()
@@ -43,7 +43,7 @@ class MergeRequest(BaseModel):
 @router.post("/api/merge")
 async def merge_endpoint(request: MergeRequest):
     payload = request.model_dump()
-    response = await merge_texts(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(merge_texts_stream(payload), media_type="application/x-ndjson")
+    response = await merge_texts(payload)
     return response

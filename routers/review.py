@@ -3,7 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List
 
-from services.review_service import full_review, review_section
+from services.review_service import full_review, full_review_stream, review_section
 from services.streaming import stream_json
 
 
@@ -49,7 +49,7 @@ async def section_review(request: ReviewRequest):
 @router.post("/api/full-review")
 async def full_review_endpoint(request: FullReviewRequest):
     payload = request.model_dump()
-    response = await full_review(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(full_review_stream(payload), media_type="application/x-ndjson")
+    response = await full_review(payload)
     return response

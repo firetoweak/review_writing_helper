@@ -3,6 +3,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import List, Optional
 
+from services.review_service import full_polish_stream
 from services.streaming import stream_json
 from services.writing_service import full_polish
 
@@ -34,7 +35,7 @@ class FullPolishRequest(BaseModel):
 @router.post("/api/full-polish")
 async def full_polish_endpoint(request: FullPolishRequest):
     payload = request.model_dump()
-    response = await full_polish(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(full_polish_stream(payload), media_type="application/x-ndjson")
+    response = await full_polish(payload)
     return response

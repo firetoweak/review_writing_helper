@@ -4,7 +4,12 @@ from pydantic import BaseModel
 from typing import List, Optional
 
 from services.streaming import stream_json
-from services.writing_service import help_chat_message, help_chat_start
+from services.writing_service import (
+    help_chat_message,
+    help_chat_message_stream,
+    help_chat_start,
+    help_chat_start_stream,
+)
 
 
 router = APIRouter()
@@ -49,16 +54,16 @@ class HelpChatMessageRequest(BaseModel):
 @router.post("/api/i-can/chat")
 async def help_chat(request: HelpChatRequest):
     payload = request.model_dump()
-    response = await help_chat_start(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(help_chat_start_stream(payload), media_type="application/x-ndjson")
+    response = await help_chat_start(payload)
     return response
 
 
 @router.post("/api/i-can/chat/message")
 async def help_chat_message_endpoint(request: HelpChatMessageRequest):
     payload = request.model_dump()
-    response = await help_chat_message(payload)
     if payload.get("stream"):
-        return StreamingResponse(stream_json(response), media_type="application/x-ndjson")
+        return StreamingResponse(help_chat_message_stream(payload), media_type="application/x-ndjson")
+    response = await help_chat_message(payload)
     return response
