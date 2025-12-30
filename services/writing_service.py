@@ -11,9 +11,10 @@ from ai_writer_agent.models.schemas import (
     ProjectOutlineRequest,
     TextRestructRequest,
 )
-from models.llm_interface_async import LLMInterfaceAsync
+from langgraph.graph import StateGraph
+from models.llm_interface_async import build_chat_model, build_messages, is_llm_configured
 from services.factory import get_service_bundle
-from services.streaming import stream_tokens
+from services.streaming_langgraph import graph_to_ndjson_tokens
 
 
 async def generate_outline(payload: dict) -> dict:
@@ -65,70 +66,84 @@ async def help_chat_message(payload: dict) -> dict:
 
 
 async def help_chat_start_stream(payload: dict):
-    llm = LLMInterfaceAsync()
-    messages = payload.get("messages", [])
-    system_prompt = payload.get("helpPrompt") or ""
-    user_text = payload.get("sessionText") or ""
-    tokens = llm.stream_chat_tokens(
-        ([{"role": "system", "content": system_prompt}] if system_prompt else [])
-        + messages
-        + [{"role": "user", "content": user_text}],
-        max_tokens=2000,
+    if not is_llm_configured():
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+        return
+    graph, input_messages = _build_stream_graph(
+        system_prompt=payload.get("helpPrompt") or "",
+        user_text=payload.get("sessionText") or "",
+        messages=payload.get("messages", []),
     )
-    async for line in stream_tokens(tokens):
+    async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
 
 
 async def help_chat_message_stream(payload: dict):
-    llm = LLMInterfaceAsync()
-    system_prompt = payload.get("helpPrompt") or ""
-    user_text = json.dumps(payload.get("messages", []), ensure_ascii=False)
-    tokens = llm.stream_chat_tokens(
-        ([{"role": "system", "content": system_prompt}] if system_prompt else [])
-        + [{"role": "user", "content": user_text}],
-        max_tokens=2000,
+    if not is_llm_configured():
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+        return
+    graph, input_messages = _build_stream_graph(
+        system_prompt=payload.get("helpPrompt") or "",
+        user_text=payload.get("sessionText") or "",
+        messages=payload.get("messages", []),
     )
-    async for line in stream_tokens(tokens):
+    async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
 
 
 async def heuristic_start_stream(payload: dict):
-    llm = LLMInterfaceAsync()
-    system_prompt = payload.get("heuristicPrompt") or ""
-    user_text = payload.get("text") or payload.get("title") or ""
-    tokens = llm.stream_chat_tokens(
-        ([{"role": "system", "content": system_prompt}] if system_prompt else [])
-        + [{"role": "user", "content": user_text}],
-        max_tokens=2000,
+    if not is_llm_configured():
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+        return
+    graph, input_messages = _build_stream_graph(
+        system_prompt=payload.get("heuristicPrompt") or "",
+        user_text=payload.get("text") or payload.get("title") or "",
+        messages=payload.get("messages", []),
     )
-    async for line in stream_tokens(tokens):
+    async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
 
 
 async def heuristic_message_stream(payload: dict):
-    llm = LLMInterfaceAsync()
-    system_prompt = payload.get("heuristicPrompt") or ""
-    user_text = json.dumps(payload.get("messages", []), ensure_ascii=False)
-    tokens = llm.stream_chat_tokens(
-        ([{"role": "system", "content": system_prompt}] if system_prompt else [])
-        + [{"role": "user", "content": user_text}],
-        max_tokens=2000,
+    if not is_llm_configured():
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+        return
+    graph, input_messages = _build_stream_graph(
+        system_prompt=payload.get("heuristicPrompt") or "",
+        user_text=payload.get("text") or payload.get("title") or "",
+        messages=payload.get("messages", []),
     )
-    async for line in stream_tokens(tokens):
+    async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
 
 
 async def merge_texts_stream(payload: dict):
-    llm = LLMInterfaceAsync()
-    system_prompt = payload.get("mergePrompt") or ""
-    user_text = json.dumps(payload.get("text", []), ensure_ascii=False)
-    tokens = llm.stream_chat_tokens(
-        ([{"role": "system", "content": system_prompt}] if system_prompt else [])
-        + [{"role": "user", "content": user_text}],
-        max_tokens=2000,
+    if not is_llm_configured():
+        yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
+        return
+    graph, input_messages = _build_stream_graph(
+        system_prompt=payload.get("mergePrompt") or "",
+        user_text="",
+        messages=payload.get("messages", []) + payload.get("text", []),
     )
-    async for line in stream_tokens(tokens):
+    async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
+
+
+def _build_stream_graph(*, system_prompt: str, user_text: str, messages: list) -> tuple[StateGraph, list]:
+    model = build_chat_model(streaming=True)
+    lc_messages = build_messages(system_prompt=system_prompt, user_text=user_text, messages=messages)
+    graph = StateGraph(dict)
+
+    async def call_model(state: dict) -> dict:
+        response = await model.ainvoke(state["messages"])
+        return {"response": response}
+
+    graph.add_node("call_model", call_model)
+    graph.set_entry_point("call_model")
+    graph.set_finish_point("call_model")
+    compiled = graph.compile()
+    return compiled, lc_messages
 
 
 async def kb_action(payload: dict) -> dict:

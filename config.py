@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from typing import Optional
 
 
@@ -18,3 +19,18 @@ DEFAULT_CONFIG = AppConfig()
 
 def load_config() -> AppConfig:
     return DEFAULT_CONFIG
+
+
+@dataclass(frozen=True)
+class ChatVLMSettings:
+    base_url: str = os.environ.get("CHATVLM_BASE_URL", "")
+    api_key: str = os.environ.get("CHATVLM_API_KEY", "")
+    model: str = os.environ.get("CHATVLM_MODEL", "")
+
+
+@dataclass(frozen=True)
+class Settings:
+    chatvlm: ChatVLMSettings = ChatVLMSettings()
+
+
+settings = Settings()

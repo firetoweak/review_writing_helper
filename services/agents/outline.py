@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, TypedDict
 
-import httpx
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph
 
-from models.llm_interface_async import LLMInterfaceAsync, extract_json
+from models.llm_interface_async import build_chat_model, build_messages, extract_json, is_llm_configured
 
 
 class OutlineState(TypedDict):
@@ -15,8 +14,7 @@ class OutlineState(TypedDict):
 
 
 class OutlineGenerator:
-    def __init__(self, llm_client: LLMInterfaceAsync | None = None) -> None:
-        self._llm_client = llm_client or LLMInterfaceAsync()
+    def __init__(self) -> None:
         self._graph = self._build_graph()
 
     def generate_outline(self, payload: Dict) -> Dict:
@@ -84,17 +82,12 @@ class OutlineGenerator:
             '{"docGuide": "...", "outline": [{"nodeId": "1", "level": 1, "title": "...", '
             '"keyPoint": "...", "children": [{"nodeId": "1.1", "level": 2, "title": "...", "keyPoint": "..."}]}]}'
         )
-        try:
-            raw = await self._llm_client.chat(
-                [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt},
-                ],
-                max_tokens=2000,
-            )
-        except httpx.HTTPError:
-            return None
-        data = extract_json(raw)
+        model = build_chat_model(streaming=False)
+        result = await model.ainvoke(
+            build_messages(system_prompt=system_prompt, user_text=prompt, messages=None)
+        )
+        content = getattr(result, "content", "")
+        data = extract_json(content)
         if isinstance(data, dict) and "docGuide" in data and "outline" in data:
             return data
         return None
@@ -108,7 +101,7 @@ class OutlineGenerator:
             outline_prompt = payload.get("outlinePrompt") or payload.get("outline_prompt", "")
             outline_sections = self._coerce_outline_sections(payload, project)
             title = project.get("title", "未命名立项")
-            if outline_prompt and self._llm_client.is_configured():
+            if outline_prompt and is_llm_configured():
                 outline_response = await self._call_outline_llm(project, outline_prompt, outline_sections)
                 if outline_response:
                     return {"outline": outline_response}
