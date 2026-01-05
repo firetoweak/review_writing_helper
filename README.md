@@ -7,11 +7,14 @@
 ├── main.py
 ├── models
 │   ├── chat_db.py
-│   └── llm_interface_async.py
+│   ├── __init__.py
+│   ├── llm_interface_async.py
+│   └── schemas.py
 ├── README.md
 ├── routers
 │   ├── help.py
 │   ├── heuristic.py
+│   ├── __init__.py
 │   ├── kb.py
 │   ├── merge.py
 │   ├── outline.py
@@ -19,18 +22,23 @@
 │   ├── review.py
 │   └── writing.py
 └── services
-    ├── ai_client.py
-    ├── contracts.py    # service 接口契约（Protocol/ABC）
-    ├── factory.py      # 根据配置选择 Fake 或 Real
-    ├── fake
+    ├── agents
     │   ├── help.py
+    │   ├── heuristic.py
     │   ├── __init__.py
     │   ├── kb.py
     │   ├── merge.py
-    │   ├── review.py
-    │   └── writing.py
+    │   ├── outline.py
+    │   ├── polish.py
+    │   ├── restruct.py
+    │   └── review.py
+    ├── contracts.py
+    ├── factory.py
     ├── kb_client.py
     ├── review_service.py
+    ├── service_bundle.py
+    ├── streaming_langgraph.py
+    ├── streaming.py
     └── writing_service.py
 
 
