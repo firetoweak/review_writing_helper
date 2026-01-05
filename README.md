@@ -34,4 +34,4 @@
     └── writing_service.py
 
 
-# 添加目录结构，并先添加假接口，供后端可先调用AI agent端
+# 智能写作助手agent端侧
