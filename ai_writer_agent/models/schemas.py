@@ -62,6 +62,7 @@ class HeuristicCreateRequest(BaseModel):
     title: str
     text: Optional[str] = None
     task: str
+    sessionId: Optional[str] = None
     historyText: Optional[List[HistorySection]] = None
     heuristicPrompt: Optional[str] = None
     messages: List[Message] = []
@@ -72,6 +73,7 @@ class HeuristicMessageRequest(BaseModel):
     nodeId: str
     title: str
     task: str
+    sessionId: Optional[str] = None
     messages: List[Message]
     heuristicPrompt: Optional[str] = None
     stream: Optional[bool] = False

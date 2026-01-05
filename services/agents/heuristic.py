@@ -46,7 +46,8 @@ class HeuristicAgent:
         node_id = payload.get("nodeId", "")
         title = payload.get("title", "")
         heuristic_prompt = payload.get("heuristicPrompt") or ""
-        thread_id = f"heuristic:{node_id}"
+        session_id = payload.get("sessionId") or node_id
+        thread_id = f"heuristic:{session_id}"
 
         state = self._graph.invoke(
             {
@@ -70,7 +71,8 @@ class HeuristicAgent:
         node_id = payload.get("nodeId", "")
         title = payload.get("title", "")
         heuristic_prompt = payload.get("heuristicPrompt") or ""
-        thread_id = f"heuristic:{node_id}"
+        session_id = payload.get("sessionId") or node_id
+        thread_id = f"heuristic:{session_id}"
 
         state = self._graph.invoke(
             {
