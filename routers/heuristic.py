@@ -45,7 +45,7 @@ class HeuristicRequest(BaseModel):
     historyText: Optional[List[HistorySection]] = None
     heuristicPrompt: Optional[str] = None
     messages: List[Message] = []
-    stream: Optional[bool] = False
+    stream: Optional[bool] = True
 
 
 class HeuristicMessageRequest(BaseModel):
@@ -55,7 +55,7 @@ class HeuristicMessageRequest(BaseModel):
     sessionId: Optional[str] = None
     messages: List[Message]
     heuristicPrompt: Optional[str] = None
-    stream: Optional[bool] = False
+    stream: Optional[bool] = True
 
 
 @router.post("/api/heuristic-writing")
