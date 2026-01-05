@@ -41,6 +41,12 @@ class HeuristicAgent:
         self._graph = self._build_graph()
         self._stream_graph = self._build_stream_graph()
 
+    def start(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self._handle_non_stream(payload)
+
+    def message(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        return self._handle_non_stream(payload)
+
     async def stream(self, payload: Dict[str, Any]) -> AsyncIterator[str]:
         node_id = payload.get("nodeId", "") or ""
         title = payload.get("title", "") or ""
@@ -104,6 +110,63 @@ class HeuristicAgent:
             yield line
         return
 
+    def _handle_non_stream(self, payload: Dict[str, Any]) -> Dict[str, Any]:
+        node_id = payload.get("nodeId", "") or ""
+        title = payload.get("title", "") or ""
+        heuristic_prompt = payload.get("heuristicPrompt") or ""
+        session_id = payload.get("sessionId") or node_id
+        thread_id = f"heuristic:{session_id}"
+        task = payload.get("task", "heuristicWriting")
+
+        state = self._graph.invoke(
+            {
+                "node_id": node_id,
+                "title": title,
+                "heuristic_prompt": heuristic_prompt,
+                "incoming_messages": payload.get("messages", []) or [],
+                "sync_only": True,
+            },
+            config={"configurable": {"thread_id": thread_id}},
+        )
+        messages = state.get("messages", []) or []
+
+        if not is_llm_configured():
+            question = self._fallback_question(title)
+            return {
+                "status": "ask",
+                "assistantMessage": {
+                    "messageId": self._next_message_uuid(),
+                    "role": "assistant",
+                    "type": "question",
+                    "content": question,
+                },
+            }
+
+        if self._ready_to_draft_after_n(messages, n=MAX_QUESTIONS):
+            draft = self._gen_draft(messages=messages, heuristic_prompt=heuristic_prompt)
+            return {
+                "status": "draft",
+                "assistantMessage": {
+                    "messageId": self._next_message_uuid(),
+                    "role": "assistant",
+                    "type": "text",
+                    "content": draft,
+                },
+            }
+
+        question = (self._gen_question(messages=messages, heuristic_prompt=heuristic_prompt) or "").strip()
+        if not question:
+            question = self._fallback_question(title)
+        return {
+            "status": "ask",
+            "assistantMessage": {
+                "messageId": self._next_message_uuid(),
+                "role": "assistant",
+                "type": "question",
+                "content": question,
+            },
+        }
+
     def _build_graph(self):
         graph = StateGraph(HeuristicState)
 
@@ -119,6 +182,13 @@ class HeuristicAgent:
         return graph.compile(checkpointer=MemorySaver())
 
     def _gen_question(self, messages: List[Dict[str, Any]], heuristic_prompt: str) -> str:
+        model = build_chat_model(streaming=False)
+        system_prompt = (heuristic_prompt or "").rstrip()
+        lc_messages = build_messages(system_prompt=system_prompt, user_text="", messages=messages)
+        res = model.invoke(lc_messages)
+        return (getattr(res, "content", "") or "").strip()
+
+    def _gen_draft(self, messages: List[Dict[str, Any]], heuristic_prompt: str) -> str:
         model = build_chat_model(streaming=False)
         system_prompt = (heuristic_prompt or "").rstrip()
         lc_messages = build_messages(system_prompt=system_prompt, user_text="", messages=messages)
