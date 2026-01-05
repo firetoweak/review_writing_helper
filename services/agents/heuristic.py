@@ -133,6 +133,9 @@ class HeuristicAgent:
         if not is_llm_configured():
             question = self._fallback_question(title)
             return {
+                "nodeId": node_id,
+                "title": title,
+                "task": task,
                 "status": "ask",
                 "assistantMessage": {
                     "messageId": self._next_message_uuid(),
@@ -145,6 +148,9 @@ class HeuristicAgent:
         if self._ready_to_draft_after_n(messages, n=MAX_QUESTIONS):
             draft = self._gen_draft(messages=messages, heuristic_prompt=heuristic_prompt)
             return {
+                "nodeId": node_id,
+                "title": title,
+                "task": task,
                 "status": "draft",
                 "assistantMessage": {
                     "messageId": self._next_message_uuid(),
@@ -158,6 +164,9 @@ class HeuristicAgent:
         if not question:
             question = self._fallback_question(title)
         return {
+            "nodeId": node_id,
+            "title": title,
+            "task": task,
             "status": "ask",
             "assistantMessage": {
                 "messageId": self._next_message_uuid(),
