@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import itertools
 import operator
+import re
 from typing import Any, Dict, List, TypedDict, Annotated
 
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph
+
+from models.llm_interface_async import build_chat_model, build_messages, is_llm_configured
 
 
 class HeuristicState(TypedDict):
@@ -74,8 +77,21 @@ class HeuristicAgent:
             messages = state.get("messages", [])
             heuristic_prompt = state.get("heuristic_prompt", "")
             user_answers = [msg for msg in messages if msg.get("role") == "user"]
-            if len(user_answers) >= 5:
-                content = self._heuristic_draft(title, user_answers)
+            if not is_llm_configured():
+                question = self._heuristic_question(len(user_answers) + 1, title)
+                response = {
+                    "status": "ask",
+                    "assistantMessage": {
+                        "messageId": self._next_message_id(),
+                        "role": "assistant",
+                        "type": "question",
+                        "content": question,
+                    },
+                }
+                return {"messages": [response["assistantMessage"]], "last_response": response}
+
+            if self._should_write_draft(messages):
+                content = self._generate_draft(title, heuristic_prompt, messages)
                 response = {
                     "status": "draft",
                     "assistantMessage": {
@@ -86,9 +102,21 @@ class HeuristicAgent:
                     },
                 }
                 return {"messages": [response["assistantMessage"]], "last_response": response}
-            question = self._heuristic_question(len(user_answers) + 1, title)
-            if heuristic_prompt:
-                question = f"{question} 提示：{heuristic_prompt}"
+
+            if len(user_answers) >= 5 and not self._awaiting_confirmation(messages):
+                content = "信息已经足够。请确认是否开始撰写本节正文？请回复“确认”或说明需要补充的点。"
+                response = {
+                    "status": "ask",
+                    "assistantMessage": {
+                        "messageId": self._next_message_id(),
+                        "role": "assistant",
+                        "type": "question",
+                        "content": content,
+                    },
+                }
+                return {"messages": [response["assistantMessage"]], "last_response": response}
+
+            question = self._generate_question(title, heuristic_prompt, messages)
             response = {
                 "status": "ask",
                 "assistantMessage": {
@@ -110,11 +138,45 @@ class HeuristicAgent:
             return f"[{title}] 请补充第 {index} 条关键信息。"
         return f"请补充第 {index} 条关键信息。"
 
-    def _heuristic_draft(self, title: str, answers: List[Dict]) -> str:
-        summary = "\n".join(
-            f"- {item.get('content', '')}" for item in answers if item.get("content")
+    def _should_write_draft(self, messages: List[Dict]) -> bool:
+        if not messages:
+            return False
+        last_user = next((msg for msg in reversed(messages) if msg.get("role") == "user"), None)
+        if not last_user:
+            return False
+        content = last_user.get("content", "")
+        return self._awaiting_confirmation(messages) and self._is_confirmed(content)
+
+    def _awaiting_confirmation(self, messages: List[Dict]) -> bool:
+        for msg in reversed(messages):
+            if msg.get("role") == "assistant":
+                return "请确认" in msg.get("content", "")
+        return False
+
+    def _is_confirmed(self, content: str) -> bool:
+        return bool(re.search(r"(确认|可以开始|开始写|可以写)", content))
+
+    def _generate_question(self, title: str, prompt: str, messages: List[Dict]) -> str:
+        model = build_chat_model(streaming=False)
+        system_prompt = prompt or "你是写作教练，请用循序追问方式提出一个清晰问题。"
+        user_text = (
+            f"当前小节：{title}\n"
+            "请基于已有信息提出下一个最关键的问题，只输出一个问题。"
         )
-        return "\n".join(filter(None, [title, summary]))
+        lc_messages = build_messages(system_prompt=system_prompt, user_text=user_text, messages=messages)
+        result = model.invoke(lc_messages)
+        return getattr(result, "content", "") or self._heuristic_question(len(messages) + 1, title)
+
+    def _generate_draft(self, title: str, prompt: str, messages: List[Dict]) -> str:
+        model = build_chat_model(streaming=False)
+        system_prompt = prompt or "你是写作助手，请基于对话内容生成该小节正文。"
+        user_text = (
+            f"当前小节：{title}\n"
+            "请根据对话内容输出完整正文，不要添加额外说明。"
+        )
+        lc_messages = build_messages(system_prompt=system_prompt, user_text=user_text, messages=messages)
+        result = model.invoke(lc_messages)
+        return getattr(result, "content", "")
 
     def _next_message_id(self, prefix: str = "m_ai") -> str:
         return f"{prefix}_{next(self._counter)}"
