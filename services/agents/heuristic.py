@@ -9,6 +9,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import StateGraph
 
 from models.llm_interface_async import build_chat_model, build_messages, is_llm_configured
+from services.streaming_langgraph import graph_to_ndjson_tokens
 
 
 class HeuristicState(TypedDict):
@@ -133,6 +134,17 @@ class HeuristicAgent:
         graph.set_finish_point("generate")
         return graph.compile(checkpointer=MemorySaver())
 
+    async def stream(self, payload: Dict):
+        if not is_llm_configured():
+            yield '{"type":"done"}\n'
+            return
+        system_prompt = payload.get("heuristicPrompt") or ""
+        user_text = payload.get("text") or payload.get("title") or ""
+        messages = payload.get("messages", [])
+        graph, input_messages = self._build_stream_graph(system_prompt, user_text, messages)
+        async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
+            yield line
+
     def _heuristic_question(self, index: int, title: str) -> str:
         if title:
             return f"[{title}] 请补充第 {index} 条关键信息。"
@@ -180,3 +192,18 @@ class HeuristicAgent:
 
     def _next_message_id(self, prefix: str = "m_ai") -> str:
         return f"{prefix}_{next(self._counter)}"
+
+    def _build_stream_graph(self, system_prompt: str, user_text: str, messages: list) -> tuple[StateGraph, list]:
+        model = build_chat_model(streaming=True)
+        lc_messages = build_messages(system_prompt=system_prompt, user_text=user_text, messages=messages)
+        graph = StateGraph(dict)
+
+        async def call_model(state: dict) -> dict:
+            response = await model.ainvoke(state["messages"])
+            return {"response": response}
+
+        graph.add_node("call_model", call_model)
+        graph.set_entry_point("call_model")
+        graph.set_finish_point("call_model")
+        compiled = graph.compile()
+        return compiled, lc_messages

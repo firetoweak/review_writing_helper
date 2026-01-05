@@ -92,6 +92,12 @@ async def help_chat_message_stream(payload: dict):
 
 
 async def heuristic_start_stream(payload: dict):
+    service = get_service_bundle().writing
+    heuristic_agent = getattr(service, "heuristic_agent", None)
+    if heuristic_agent:
+        async for line in heuristic_agent.stream(payload):
+            yield line
+        return
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
@@ -105,6 +111,12 @@ async def heuristic_start_stream(payload: dict):
 
 
 async def heuristic_message_stream(payload: dict):
+    service = get_service_bundle().writing
+    heuristic_agent = getattr(service, "heuristic_agent", None)
+    if heuristic_agent:
+        async for line in heuristic_agent.stream(payload):
+            yield line
+        return
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
