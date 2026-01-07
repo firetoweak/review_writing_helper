@@ -108,6 +108,7 @@ class SectionReviewRequest(BaseModel):
     text: List[SectionText]
     historyText: Optional[List[dict]] = None
     reviewpPrompt: Optional[str] = None
+    industry: Optional[str] = None
 
 
 class SectionReviewResponse(BaseModel):

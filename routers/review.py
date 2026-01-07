@@ -24,6 +24,7 @@ class ReviewRequest(BaseModel):
     text: List[SectionText]
     historyText: List[dict] | None = None
     reviewpPrompt: str | None = None
+    industry: str | None = None
 
 
 class FullReviewSection(BaseModel):
