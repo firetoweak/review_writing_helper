@@ -15,8 +15,8 @@ router = APIRouter()
 
 @router.post("/api/heuristic-writing")
 async def heuristic_start(request: HeuristicCreateRequest):
-    payload = request.model_dump()
-    if payload.get("stream") is not False:
+    payload = request.model_dump(exclude_unset=True, exclude_none=True)
+    if payload.get("stream", True):
         return StreamingResponse(heuristic_start_stream(payload), media_type="application/x-ndjson")
     response = await start_heuristic(payload)
     return response
@@ -24,8 +24,8 @@ async def heuristic_start(request: HeuristicCreateRequest):
 
 @router.post("/api/heuristic-writing/message")
 async def heuristic_message(request: HeuristicMessageRequest):
-    payload = request.model_dump()
-    if payload.get("stream") is not False:
+    payload = request.model_dump(exclude_unset=True, exclude_none=True)
+    if payload.get("stream", True):
         return StreamingResponse(heuristic_message_stream(payload), media_type="application/x-ndjson")
     response = await continue_heuristic(payload)
     return response

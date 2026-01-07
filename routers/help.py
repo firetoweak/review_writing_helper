@@ -15,7 +15,7 @@ router = APIRouter()
 
 @router.post("/api/i-can/chat")
 async def help_chat(request: ICanCreateRequest):
-    payload = request.model_dump()
+    payload = request.model_dump(exclude_unset=True, exclude_none=True)
     if payload.get("stream"):
         return StreamingResponse(help_chat_start_stream(payload), media_type="application/x-ndjson")
     response = await help_chat_start(payload)
@@ -24,7 +24,7 @@ async def help_chat(request: ICanCreateRequest):
 
 @router.post("/api/i-can/chat/message")
 async def help_chat_message_endpoint(request: ICanMessageRequest):
-    payload = request.model_dump()
+    payload = request.model_dump(exclude_unset=True, exclude_none=True)
     if payload.get("stream"):
         return StreamingResponse(help_chat_message_stream(payload), media_type="application/x-ndjson")
     response = await help_chat_message(payload)
