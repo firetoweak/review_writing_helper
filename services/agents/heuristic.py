@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import itertools
 import json
 import uuid
 from typing import Any, AsyncIterator, Dict, List, Optional, TypedDict
@@ -17,8 +16,8 @@ MAX_QUESTIONS = 5
 
 
 class HeuristicState(TypedDict, total=False):
-    node_id: str
-    title: str
+    session_id: str
+    section_title: str
     heuristic_prompt: str
     incoming_messages: List[Dict[str, Any]]
     messages: List[Dict[str, Any]]
@@ -37,7 +36,6 @@ class HeuristicAgent:
     """
 
     def __init__(self) -> None:
-        self._counter = itertools.count(1)
         self._graph = self._build_graph()
         self._stream_graph = self._build_stream_graph()
 
@@ -48,19 +46,19 @@ class HeuristicAgent:
         return self._handle_non_stream(payload)
 
     async def stream(self, payload: Dict[str, Any]) -> AsyncIterator[str]:
-        node_id = payload.get("nodeId", "") or ""
+        session_id = str(payload.get("sessionId", "") or "")
         title = payload.get("title", "") or ""
-        heuristic_prompt = payload.get("heuristicPrompt") or ""
-        session_id = payload.get("sessionId") or node_id
+        section_title = payload.get("sectionTitle") or title
+        heuristic_prompt = self._build_system_prompt(payload)
         thread_id = f"heuristic:{session_id}"
-        task = payload.get("task", "heuristicWriting")
+        messages = payload.get("Messages") or payload.get("messages") or []
 
         state = self._graph.invoke(
             {
-                "node_id": node_id,
-                "title": title,
+                "session_id": session_id,
+                "section_title": section_title,
                 "heuristic_prompt": heuristic_prompt,
-                "incoming_messages": payload.get("messages", []) or [],
+                "incoming_messages": messages,
                 "sync_only": True,
             },
             config={"configurable": {"thread_id": thread_id}},
@@ -68,12 +66,10 @@ class HeuristicAgent:
         messages = state.get("messages", []) or []
 
         if not is_llm_configured():
-            q = self._fallback_question(title)
+            q = self._fallback_question(section_title)
             async for line in self._fake_stream_ask_async(
                 session_id=session_id,
-                node_id=node_id,
-                title=title,
-                task=task,
+                section_title=section_title,
                 thread_id=thread_id,
                 heuristic_prompt=heuristic_prompt,
                 question=q,
@@ -84,9 +80,7 @@ class HeuristicAgent:
         if self._ready_to_draft_after_n(messages, n=MAX_QUESTIONS):
             async for line in self._true_stream_draft(
                 session_id=session_id,
-                node_id=node_id,
-                title=title,
-                task=task,
+                section_title=section_title,
                 thread_id=thread_id,
                 heuristic_prompt=heuristic_prompt,
                 messages=messages,
@@ -96,13 +90,11 @@ class HeuristicAgent:
 
         question = (self._gen_question(messages=messages, heuristic_prompt=heuristic_prompt) or "").strip()
         if not question:
-            question = self._fallback_question(title)
+            question = self._fallback_question(section_title)
 
         async for line in self._fake_stream_ask_async(
             session_id=session_id,
-            node_id=node_id,
-            title=title,
-            task=task,
+            section_title=section_title,
             thread_id=thread_id,
             heuristic_prompt=heuristic_prompt,
             question=question,
@@ -111,19 +103,19 @@ class HeuristicAgent:
         return
 
     def _handle_non_stream(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        node_id = payload.get("nodeId", "") or ""
+        session_id = str(payload.get("sessionId", "") or "")
         title = payload.get("title", "") or ""
-        heuristic_prompt = payload.get("heuristicPrompt") or ""
-        session_id = payload.get("sessionId") or node_id
+        section_title = payload.get("sectionTitle") or title
+        heuristic_prompt = self._build_system_prompt(payload)
         thread_id = f"heuristic:{session_id}"
-        task = payload.get("task", "heuristicWriting")
+        messages = payload.get("Messages") or payload.get("messages") or []
 
         state = self._graph.invoke(
             {
-                "node_id": node_id,
-                "title": title,
+                "session_id": session_id,
+                "section_title": section_title,
                 "heuristic_prompt": heuristic_prompt,
-                "incoming_messages": payload.get("messages", []) or [],
+                "incoming_messages": messages,
                 "sync_only": True,
             },
             config={"configurable": {"thread_id": thread_id}},
@@ -131,11 +123,9 @@ class HeuristicAgent:
         messages = state.get("messages", []) or []
 
         if not is_llm_configured():
-            question = self._fallback_question(title)
+            question = self._fallback_question(section_title)
             return {
-                "nodeId": node_id,
-                "title": title,
-                "task": task,
+                "sessionId": session_id,
                 "status": "ask",
                 "assistantMessage": {
                     "messageId": self._next_message_uuid(),
@@ -148,9 +138,7 @@ class HeuristicAgent:
         if self._ready_to_draft_after_n(messages, n=MAX_QUESTIONS):
             draft = self._gen_draft(messages=messages, heuristic_prompt=heuristic_prompt)
             return {
-                "nodeId": node_id,
-                "title": title,
-                "task": task,
+                "sessionId": session_id,
                 "status": "draft",
                 "assistantMessage": {
                     "messageId": self._next_message_uuid(),
@@ -162,11 +150,9 @@ class HeuristicAgent:
 
         question = (self._gen_question(messages=messages, heuristic_prompt=heuristic_prompt) or "").strip()
         if not question:
-            question = self._fallback_question(title)
+            question = self._fallback_question(section_title)
         return {
-            "nodeId": node_id,
-            "title": title,
-            "task": task,
+            "sessionId": session_id,
             "status": "ask",
             "assistantMessage": {
                 "messageId": self._next_message_uuid(),
@@ -220,9 +206,7 @@ class HeuristicAgent:
     async def _true_stream_draft(
         self,
         session_id: str,
-        node_id: str,
-        title: str,
-        task: str,
+        section_title: str,
         thread_id: str,
         heuristic_prompt: str,
         messages: List[Dict[str, Any]],
@@ -233,9 +217,6 @@ class HeuristicAgent:
             {
                 "type": "message.start",
                 "sessionId": session_id,
-                "nodeId": node_id,
-                "title": title,
-                "task": task,
                 "status": "draft",
                 "assistantMessage": {"messageId": msg_id, "role": "assistant", "type": "text", "content": ""},
             }
@@ -262,8 +243,8 @@ class HeuristicAgent:
 
         self._graph.invoke(
             {
-                "node_id": node_id,
-                "title": title,
+                "session_id": session_id,
+                "section_title": section_title,
                 "heuristic_prompt": heuristic_prompt,
                 "incoming_messages": [{"messageId": msg_id, "role": "assistant", "type": "text", "content": content_acc}],
                 "sync_only": True,
@@ -274,9 +255,7 @@ class HeuristicAgent:
     async def _fake_stream_ask_async(
         self,
         session_id: str,
-        node_id: str,
-        title: str,
-        task: str,
+        section_title: str,
         thread_id: str,
         heuristic_prompt: str,
         question: str,
@@ -287,9 +266,6 @@ class HeuristicAgent:
             {
                 "type": "message.start",
                 "sessionId": session_id,
-                "nodeId": node_id,
-                "title": title,
-                "task": task,
                 "status": "ask",
                 "assistantMessage": {"messageId": msg_id, "role": "assistant", "type": "question", "content": ""},
             }
@@ -304,8 +280,8 @@ class HeuristicAgent:
 
         self._graph.invoke(
             {
-                "node_id": node_id,
-                "title": title,
+                "session_id": session_id,
+                "section_title": section_title,
                 "heuristic_prompt": heuristic_prompt,
                 "incoming_messages": [{"messageId": msg_id, "role": "assistant", "type": "question", "content": question}],
                 "sync_only": True,
@@ -360,8 +336,57 @@ class HeuristicAgent:
             add(m)
         return merged
 
-    def _fallback_question(self, title: str) -> str:
-        return f"信息还不够。我需要你补充一个关键点：在[{title}]里，你最想强调的市场变化/竞争趋势是哪一条？"
+    def _fallback_question(self, section_title: str) -> str:
+        return f"信息还不够。我需要你补充一个关键点：在[{section_title}]里，你最想强调的市场变化/竞争趋势是哪一条？"
+
+    def _build_system_prompt(self, payload: Dict[str, Any]) -> str:
+        prompt_data = payload.get("prompt") or {}
+        if not isinstance(prompt_data, dict):
+            prompt_data = {}
+        heuristic_prompt = (
+            prompt_data.get("heuristicWritingPrompt")
+            or prompt_data.get("heuristicCorrectPrompt")
+            or ""
+        )
+        section_write_rule = payload.get("sectionWriteRule") or ""
+        section_review_rule = payload.get("sectionReviewRule") or ""
+        industry = payload.get("industry") or ""
+        title = payload.get("title") or ""
+        section_title = payload.get("sectionTitle") or ""
+        text_context = self._format_text_list(payload.get("textList") or [])
+        history_context = self._format_history_text(payload.get("historyTextList") or [])
+        parts = [
+            heuristic_prompt,
+            f"标题：{title}" if title else "",
+            f"小节标题：{section_title}" if section_title else "",
+            f"行业：{industry}" if industry else "",
+            f"写作规则：{section_write_rule}" if section_write_rule else "",
+            f"审阅规则：{section_review_rule}" if section_review_rule else "",
+            f"已有内容：{text_context}" if text_context else "",
+            f"历史内容：{history_context}" if history_context else "",
+        ]
+        return "\n".join(part for part in parts if part).strip()
+
+    def _format_text_list(self, text_list: List[Dict[str, Any]]) -> str:
+        parts = []
+        for item in text_list:
+            title = item.get("sectionTitle") or ""
+            text = item.get("text") or ""
+            if title or text:
+                parts.append(f"{title}: {text}".strip())
+        return "\n".join(parts)
+
+    def _format_history_text(self, history_list: List[Dict[str, Any]]) -> str:
+        parts = []
+        for chapter in history_list:
+            chapter_title = chapter.get("chapterTitle") or ""
+            for child in chapter.get("children", []):
+                section_title = child.get("sectionTitle") or ""
+                text = child.get("text") or ""
+                label = " / ".join(filter(None, [chapter_title, section_title]))
+                if label or text:
+                    parts.append(f"{label}: {text}".strip())
+        return "\n".join(parts)
 
     def _split_chunks(self, text: str, chunk_size: int = 24) -> List[str]:
         t = (text or "").strip()

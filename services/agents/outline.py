@@ -21,19 +21,16 @@ class OutlineGenerator:
         state = self._graph.invoke({"payload": payload})
         return state["outline"]
 
-    def _coerce_outline_sections(self, payload: Dict, project: Dict) -> List[str]:
-        sections = (
-            payload.get("outlineSections")
-            or payload.get("outline_sections")
-            or project.get("outlineSections")
-            or project.get("outline_sections")
-        )
-        if isinstance(sections, list) and sections:
-            return [str(item) for item in sections]
+    def _coerce_outline_sections(self, full_write_rule: str) -> List[str]:
+        lines = [line.strip() for line in (full_write_rule or "").splitlines() if line.strip()]
+        if lines:
+            return lines
         return []
 
     def _fallback_outline(self, outline_sections: List[str], outline_prompt: str, title: str) -> List[Dict]:
         outline = []
+        if not outline_sections:
+            outline_sections = [title or "章节一", "章节二"]
         for idx, section in enumerate(outline_sections, start=1):
             node_id = str(idx)
             children = [
@@ -41,13 +38,11 @@ class OutlineGenerator:
                     "nodeId": f"{node_id}.1",
                     "level": 2,
                     "title": str(section),
-                    "keyPoint": outline_prompt or "",
                 },
                 {
                     "nodeId": f"{node_id}.2",
                     "level": 2,
                     "title": str(section),
-                    "keyPoint": outline_prompt or "",
                 },
             ]
             outline.append(
@@ -55,32 +50,33 @@ class OutlineGenerator:
                     "nodeId": node_id,
                     "level": 1,
                     "title": str(section),
-                    "keyPoint": outline_prompt or "",
                     "children": children,
                 }
             )
         return outline
 
     async def _call_outline_llm(
-        self, project: Dict, outline_prompt: str, outline_sections: List[str]
+        self, payload: Dict, outline_prompt: str, outline_sections: List[str]
     ) -> Dict | None:
-        title = project.get("title", "")
-        idea = project.get("idea", "")
-        attachments = project.get("attachments", [])
-        attachment_names = ", ".join(att.get("name", "") for att in attachments if att.get("name"))
+        title = payload.get("title", "")
+        idea = payload.get("idea", "")
+        industry = payload.get("industry", "")
+        full_write_rule = payload.get("fullWriteRule", "")
         hints = "\n".join(outline_sections)
         prompt_parts = [
             f"立项标题：{title}",
             f"立项构想：{idea}" if idea else "",
-            f"附件：{attachment_names}" if attachment_names else "",
+            f"行业：{industry}" if industry else "",
+            f"写作规则：{full_write_rule}" if full_write_rule else "",
             f"参考章节：{hints}" if hints else "",
             f"用户提示：{outline_prompt}",
         ]
         prompt = "\n".join(part for part in prompt_parts if part)
         system_prompt = (
             "你是立项写作助手，请输出JSON，结构为："
-            '{"docGuide": "...", "outline": [{"nodeId": "1", "level": 1, "title": "...", '
-            '"keyPoint": "...", "children": [{"nodeId": "1.1", "level": 2, "title": "...", "keyPoint": "..."}]}]}'
+            '{"docGuide": [{"title": "...", "content": "..."}], '
+            '"outline": [{"nodeId": "1", "level": 1, "title": "...", '
+            '"children": [{"nodeId": "1.1", "level": 2, "title": "..."}]}]}'
         )
         model = build_chat_model(streaming=False)
         result = await model.ainvoke(
@@ -97,16 +93,18 @@ class OutlineGenerator:
 
         async def generate(state: OutlineState) -> Dict[str, Any]:
             payload = state.get("payload", {})
-            project = payload.get("project", {})
-            outline_prompt = payload.get("outlinePrompt") or payload.get("outline_prompt", "")
-            outline_sections = self._coerce_outline_sections(payload, project)
-            title = project.get("title", "未命名立项")
+            prompt_data = payload.get("prompt") or {}
+            outline_prompt = prompt_data.get("outlinePrompt") or ""
+            full_write_rule = payload.get("fullWriteRule") or ""
+            outline_sections = self._coerce_outline_sections(full_write_rule)
+            title = payload.get("title", "未命名立项")
             if outline_prompt and is_llm_configured():
-                outline_response = await self._call_outline_llm(project, outline_prompt, outline_sections)
+                outline_response = await self._call_outline_llm(payload, outline_prompt, outline_sections)
                 if outline_response:
                     return {"outline": outline_response}
             outline = self._fallback_outline(outline_sections, outline_prompt, title)
-            return {"outline": {"docGuide": outline_prompt or f"{title}", "outline": outline}}
+            doc_guide = [{"title": title, "content": outline_prompt or full_write_rule or title}]
+            return {"outline": {"docGuide": doc_guide, "outline": outline}}
 
         graph.add_node("generate", generate)
         graph.set_entry_point("generate")

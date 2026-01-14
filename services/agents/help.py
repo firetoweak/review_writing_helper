@@ -12,10 +12,11 @@ from models.llm_interface_async import build_chat_model, build_messages, is_llm_
 from services.streaming_langgraph import graph_to_ndjson_tokens
 
 class HelpState(TypedDict):
-    node_id: str
-    title: str
+    session_id: str
     session_text: str
     help_prompt: str
+    review: Dict[str, Any]
+    write_rule: Dict[str, Any]
     messages: Annotated[List[Dict[str, Any]], operator.add]
     last_response: Dict[str, Any]
 
@@ -28,43 +29,40 @@ class HelpAgent:
 
     def start(self, payload: Dict) -> Dict:
         session_id = str(payload.get("sessionId", ""))
-        node_id = payload.get("nodeId", "")
-        title = payload.get("title", "")
-        session_text = payload.get("helpText") or payload.get("sessionText", "")
-        help_prompt = payload.get("helpPrompt") or ""
+        session_text = payload.get("helpText") or ""
+        prompt = payload.get("prompt") or {}
+        help_prompt = prompt.get("helpPrompt") or ""
+        review = payload.get("review") or {}
+        write_rule = payload.get("writeRule") or {}
         thread_id = f"help:{session_id}"
         state = self._graph.invoke(
             {
-                "node_id": node_id,
-                "title": title,
+                "session_id": session_id,
                 "session_text": session_text,
                 "messages": payload.get("messages", []),
                 "help_prompt": help_prompt,
+                "review": review,
+                "write_rule": write_rule,
             },
             config={"configurable": {"thread_id": thread_id}},
         )
         response = state["last_response"]
         return {
-            "task": payload.get("task", "help"),
-            "nodeId": node_id,
-            "title": title,
             "sessionId": session_id,
             **response,
         }
 
     def message(self, payload: Dict) -> Dict:
         session_id = str(payload.get("sessionId", ""))
-        node_id = payload.get("nodeId", "")
-        title = payload.get("title", "")
-        help_prompt = payload.get("helpPrompt") or ""
+        prompt = payload.get("prompt") or {}
+        help_prompt = prompt.get("helpPrompt") or ""
         thread_id = f"help:{session_id}"
         messages = payload.get("messages", []) or []
         if payload.get("message"):
             messages = messages + [payload["message"]]
         state = self._graph.invoke(
             {
-                "node_id": node_id,
-                "title": title,
+                "session_id": session_id,
                 "messages": messages,
                 "help_prompt": help_prompt,
             },
@@ -72,34 +70,29 @@ class HelpAgent:
         )
         response = state["last_response"]
         return {
-            "task": payload.get("task", "help"),
-            "nodeId": node_id,
-            "title": title,
             "sessionId": session_id,
             **response,
         }
 
     async def stream(self, payload: Dict):
         session_id = str(payload.get("sessionId", ""))
-        node_id = payload.get("nodeId", "")
-        title = payload.get("title", "")
-        session_text = payload.get("helpText") or payload.get("sessionText", "")
-        help_prompt = payload.get("helpPrompt") or ""
+        session_text = payload.get("helpText") or ""
+        prompt = payload.get("prompt") or {}
+        help_prompt = prompt.get("helpPrompt") or ""
+        review = payload.get("review") or {}
+        write_rule = payload.get("writeRule") or {}
         messages = payload.get("messages", []) or []
         if payload.get("message"):
             messages = messages + [payload["message"]]
 
         if not is_llm_configured():
-            content = self._help_response(messages, session_text)
+            content = self._help_response(messages, session_text, review, write_rule)
             if help_prompt:
                 content = f"{content} 参考提示：{help_prompt}"
             msg_id = self._next_message_id()
             yield self._ndjson(
                 {
                     "type": "message.start",
-                    "nodeId": node_id,
-                    "title": title,
-                    "task": payload.get("task", "help"),
                     "sessionId": session_id,
                     "assistantMessage": {
                         "messageId": msg_id,
@@ -121,9 +114,6 @@ class HelpAgent:
         yield self._ndjson(
             {
                 "type": "message.start",
-                "nodeId": node_id,
-                "title": title,
-                "task": payload.get("task", "help"),
                 "sessionId": session_id,
                 "assistantMessage": {
                     "messageId": msg_id,
@@ -153,7 +143,9 @@ class HelpAgent:
             session_text = state.get("session_text", "")
             messages = state.get("messages", [])
             help_prompt = state.get("help_prompt", "")
-            content = self._help_response(messages, session_text)
+            review = state.get("review", {})
+            write_rule = state.get("write_rule", {})
+            content = self._help_response(messages, session_text, review, write_rule)
             if help_prompt:
                 content = f"{content} 参考提示：{help_prompt}"
             response = {
@@ -183,13 +175,18 @@ class HelpAgent:
         graph.set_finish_point("call_model")
         return graph.compile()
 
-    def _help_response(self, messages: List[Dict], session_text: str) -> str:
+    def _help_response(self, messages: List[Dict], session_text: str, review: Dict, write_rule: Dict) -> str:
+        review_summary = review.get("evaluate") or review.get("suggestion") or ""
+        rule_hint = write_rule.get("chapterWriteRule") or write_rule.get("sectionWriteRule") or ""
         if messages:
             last_content = messages[-1].get("content", "")
             if "解释" in last_content or "是什么" in last_content:
                 return f"关于“{last_content}”，这是对关键概念的解释，并结合你的需求给出示例。"
-            return f"已收到你的问题：{last_content}。我将结合“{session_text}”给出改进建议。"
-        return f"围绕“{session_text}”，请补充你希望完善的具体方向。"
+            return f"已收到你的问题：{last_content}。我将结合“{session_text}”给出改进建议。{review_summary}"
+        base = f"围绕“{session_text}”，请补充你希望完善的具体方向。"
+        if rule_hint:
+            base = f"{base} 当前写作规则：{rule_hint}"
+        return base
 
     def _ndjson(self, obj: Dict[str, Any]) -> str:
         return json.dumps(obj, ensure_ascii=False) + "\n"

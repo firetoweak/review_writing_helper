@@ -8,43 +8,36 @@ from models.llm_interface_async import build_chat_model, build_messages, is_llm_
 
 class MergeAgent:
     def merge_texts(self, payload: Dict) -> Dict:
-        node_id = payload.get("nodeId", "")
-        title = payload.get("title", "")
-        texts = payload.get("text", [])
+        write_rule = payload.get("writeRule") or {}
+        text_list = payload.get("textList", [])
         session_list = payload.get("sessionList", [])
-        merge_prompt = payload.get("mergePrompt") or ""
-        history_text = payload.get("historyText", [])
+        history_text = payload.get("historyTextList", [])
+        prompt = payload.get("prompt") or {}
+        merge_prompt = prompt.get("mergePrompt") or ""
 
         if is_llm_configured():
-            merged_texts = self._llm_merge(title, texts, session_list, merge_prompt, history_text)
+            merged_text = self._llm_merge(write_rule, text_list, session_list, merge_prompt, history_text)
         else:
-            merged_texts = self._fallback_merge(texts, session_list, merge_prompt)
-        return {
-            "nodeId": node_id,
-            "title": title,
-            "task": payload.get("task", "merge"),
-            "texts": merged_texts,
-        }
+            merged_text = self._fallback_merge(text_list, session_list, merge_prompt)
+        return {"text": merged_text}
 
     def _llm_merge(
         self,
-        title: str,
-        texts: list,
+        write_rule: dict,
+        text_list: list,
         session_list: list,
         merge_prompt: str,
         history_text: list,
-    ) -> list:
+    ) -> str:
         model = build_chat_model(streaming=False)
         system_prompt = "你是合入重写助手，请严格输出 JSON。"
         user_payload = {
-            "title": title,
-            "texts": texts,
+            "writeRule": write_rule,
+            "textList": text_list,
             "sessionList": session_list,
-            "historyText": history_text,
+            "historyTextList": history_text,
             "mergePrompt": merge_prompt,
-            "output_format": [
-                {"nodeId": "string", "level": "number", "title": "string", "text": "string"}
-            ],
+            "output_format": {"text": "string"},
         }
         lc_messages = build_messages(
             system_prompt=system_prompt,
@@ -52,35 +45,30 @@ class MergeAgent:
             messages=None,
         )
         result = model.invoke(lc_messages)
-        content = getattr(result, "content", "") or "[]"
+        content = getattr(result, "content", "") or "{}"
         try:
             data = json.loads(content)
         except json.JSONDecodeError:
-            return self._fallback_merge(texts, session_list, merge_prompt)
-        if isinstance(data, dict) and "texts" in data:
-            data = data.get("texts", [])
-        if not isinstance(data, list):
-            return self._fallback_merge(texts, session_list, merge_prompt)
-        return data
+            return self._fallback_merge(text_list, session_list, merge_prompt)
+        if isinstance(data, dict) and "text" in data:
+            return data.get("text") or ""
+        return self._fallback_merge(text_list, session_list, merge_prompt)
 
-    def _fallback_merge(self, texts: list, session_list: list, merge_prompt: str) -> list:
-        merged_texts = []
+    def _fallback_merge(self, text_list: list, session_list: list, merge_prompt: str) -> str:
         suggestions = []
         for session in session_list:
             for msg in session.get("messages", []):
                 if msg.get("role") == "assistant":
                     suggestions.append(msg.get("content", ""))
-        for item in texts:
+        text_blocks = []
+        for item in text_list:
+            title = item.get("sectionTitle") or ""
             base_text = item.get("text", "")
-            extra = "\n".join(suggestions[:2])
-            if merge_prompt:
-                extra = "\n".join(filter(None, [extra, f"参考提示：{merge_prompt}"]))
-            merged_texts.append(
-                {
-                    "nodeId": item.get("nodeId"),
-                    "level": item.get("level"),
-                    "title": item.get("title"),
-                    "text": base_text + ("\n" + extra if extra else ""),
-                }
-            )
-        return merged_texts
+            block = "\n".join(filter(None, [title, base_text]))
+            if block:
+                text_blocks.append(block)
+        extra = "\n".join(suggestions[:2])
+        if merge_prompt:
+            extra = "\n".join(filter(None, [extra, f"参考提示：{merge_prompt}"]))
+        merged = "\n\n".join(text_blocks)
+        return "\n\n".join(filter(None, [merged, extra]))

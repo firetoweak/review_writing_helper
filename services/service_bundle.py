@@ -21,7 +21,6 @@ from ai_writer_agent.models.schemas import (
     ProjectOutlineResponse,
     SectionReviewRequest,
     SectionReviewResponse,
-    HelpListResponse,
     TextRestructRequest,
     TextRestructResponse,
 )
@@ -60,9 +59,7 @@ class ReviewServiceImpl(ReviewService):
     review_agent: ReviewAgent
     polish_agent: PolishAgent
 
-    async def section_review(
-        self, req: SectionReviewRequest
-    ) -> SectionReviewResponse | HelpListResponse:
+    async def section_review(self, req: SectionReviewRequest) -> SectionReviewResponse:
         data = self.review_agent.review_section(req.model_dump())
         return SectionReviewResponse(**data)
 

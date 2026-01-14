@@ -75,9 +75,10 @@ async def help_chat_start_stream(payload: dict):
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
+    prompt = payload.get("prompt") or {}
     graph, input_messages = _build_stream_graph(
-        system_prompt=payload.get("helpPrompt") or "",
-        user_text=payload.get("sessionText") or "",
+        system_prompt=prompt.get("helpPrompt") or "",
+        user_text=payload.get("helpText") or "",
         messages=payload.get("messages", []),
     )
     async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
@@ -94,9 +95,10 @@ async def help_chat_message_stream(payload: dict):
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
+    prompt = payload.get("prompt") or {}
     graph, input_messages = _build_stream_graph(
-        system_prompt=payload.get("helpPrompt") or "",
-        user_text=payload.get("sessionText") or "",
+        system_prompt=prompt.get("helpPrompt") or "",
+        user_text=payload.get("helpText") or "",
         messages=payload.get("messages", []),
     )
     async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
@@ -113,10 +115,11 @@ async def heuristic_start_stream(payload: dict):
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
+    prompt = payload.get("prompt") or {}
     graph, input_messages = _build_stream_graph(
-        system_prompt=payload.get("heuristicPrompt") or "",
-        user_text=payload.get("text") or payload.get("title") or "",
-        messages=payload.get("messages", []),
+        system_prompt=prompt.get("heuristicWritingPrompt") or "",
+        user_text=str(payload.get("textList") or []),
+        messages=payload.get("Messages") or payload.get("messages") or [],
     )
     async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
@@ -132,10 +135,11 @@ async def heuristic_message_stream(payload: dict):
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
+    prompt = payload.get("prompt") or {}
     graph, input_messages = _build_stream_graph(
-        system_prompt=payload.get("heuristicPrompt") or "",
-        user_text=payload.get("text") or payload.get("title") or "",
-        messages=payload.get("messages", []),
+        system_prompt=prompt.get("heuristicWritingPrompt") or "",
+        user_text=str(payload.get("textList") or []),
+        messages=payload.get("Messages") or payload.get("messages") or [],
     )
     async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line
@@ -145,10 +149,11 @@ async def merge_texts_stream(payload: dict):
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
+    prompt = payload.get("prompt") or {}
     graph, input_messages = _build_stream_graph(
-        system_prompt=payload.get("mergePrompt") or "",
+        system_prompt=prompt.get("mergePrompt") or "",
         user_text="",
-        messages=payload.get("messages", []) + payload.get("text", []),
+        messages=payload.get("messages", []) + payload.get("textList", []),
     )
     async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):
         yield line

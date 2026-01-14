@@ -21,7 +21,6 @@ from ai_writer_agent.models.schemas import (
     ProjectOutlineResponse,
     SectionReviewRequest,
     SectionReviewResponse,
-    HelpListResponse,
     TextRestructRequest,
     TextRestructResponse,
 )
@@ -38,7 +37,7 @@ class WritingService(Protocol):
 
 
 class ReviewService(Protocol):
-    async def section_review(self, req: SectionReviewRequest) -> SectionReviewResponse | HelpListResponse: ...
+    async def section_review(self, req: SectionReviewRequest) -> SectionReviewResponse: ...
 
     async def full_review(self, req: FullReviewRequest) -> FullReviewResponse: ...
 

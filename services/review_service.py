@@ -22,9 +22,10 @@ async def full_review_stream(payload: dict):
     if not is_llm_configured():
         yield json.dumps({"type": "done"}, ensure_ascii=False) + "\n"
         return
+    prompt = payload.get("prompt") or {}
     graph, input_messages = _build_stream_graph(
-        system_prompt=payload.get("fullReviewPrompt") or "",
-        user_text=str(payload.get("fullText", [])),
+        system_prompt=prompt.get("fullReviewPrompt") or "",
+        user_text=str(payload.get("fullReviewText", "")),
         messages=payload.get("messages", []),
     )
     async for line in graph_to_ndjson_tokens(graph, {"messages": input_messages}):

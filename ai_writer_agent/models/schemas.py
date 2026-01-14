@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Union, Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 
 class Attachment(BaseModel):
@@ -11,42 +11,93 @@ class Attachment(BaseModel):
     size: Optional[int] = None
 
 
-class OutlineNode(BaseModel):
-    nodeId: str
-    level: int
+class Prompts(BaseModel):
+    industryPrompt: Optional[str] = None
+    outlinePrompt: Optional[str] = None
+    chapterKeypointPrompt: Optional[str] = None
+    sectionKeypointPrompt: Optional[str] = None
+    heuristicWritingPrompt: Optional[str] = None
+    heuristicCorrectPrompt: Optional[str] = None
+    sectionReviewPrompt: Optional[str] = None
+    chapterReviewPrompt: Optional[str] = None
+    helpPrompt: Optional[str] = None
+    mergePrompt: Optional[str] = None
+    mergeCorrectPrompt: Optional[str] = None
+    fullReviewPrompt: Optional[str] = None
+    floatPrompt: Optional[str] = None
+
+
+class TextList(BaseModel):
+    sectionId: str
+    sectionTitle: str
+    text: str
+
+
+class HistoryTextList(BaseModel):
+    chapterId: str
+    chapterTitle: str
+    children: List[TextList] = Field(default_factory=list)
+
+
+class IndustryRequest(BaseModel):
     title: str
-    keyPoint: str
+    idea: Optional[str] = None
+    industryNameList: Optional[List[str]] = None
+    prompt: Optional[Prompts] = None
+
+
+class IndustryResponse(BaseModel):
+    industryName: Optional[str] = None
+
+
+class OutlineNode(BaseModel):
+    nodeId: Optional[str] = None
+    level: Optional[int] = None
+    title: Optional[str] = None
     children: Optional[List["OutlineNode"]] = None
 
 
-class Project(BaseModel):
+class ProjectOutlineRequest(BaseModel):
     title: str
     idea: Optional[str] = None
-    attachments: List[Attachment] = []
-
-
-class ProjectOutlineRequest(BaseModel):
-    task: str
-    project: Project
-    outlinePrompt: Optional[str] = None
+    fullWriteRule: str
+    industry: Optional[str] = None
+    prompt: Optional[Prompts] = None
 
 
 class ProjectOutlineResponse(BaseModel):
-    docGuide: str
+    docGuide: List[dict]
     outline: List[OutlineNode]
 
 
-class HistoryChild(BaseModel):
-    nodeId: str
+class ChapterKeyPointRequest(BaseModel):
     title: str
-    text: Optional[str] = None
+    idea: Optional[str] = None
+    fullWriteRule: Optional[str] = None
+    chapterId: str
+    industry: Optional[str] = None
+    prompt: Optional[Prompts] = None
 
 
-class HistorySection(BaseModel):
-    nodeId: str
+class ChapterKeyPointResponse(BaseModel):
+    chapterId: str
+    keyPoint: str
+
+
+class SectionKeyPointRequest(BaseModel):
     title: str
-    level: int
-    children: List[HistoryChild]
+    idea: Optional[str] = None
+    sectionWriteRule: str
+    chapterId: str
+    sectionId: str
+    industry: Optional[str] = None
+    outline: Optional[List[OutlineNode]] = None
+    prompt: Optional[Prompts] = None
+
+
+class SectionKeyPointResponse(BaseModel):
+    sectionId: str
+    keyPoint: str
 
 
 class Message(BaseModel):
@@ -58,165 +109,146 @@ class Message(BaseModel):
 
 
 class HeuristicCreateRequest(BaseModel):
-    nodeId: str
+    sectionWriteRule: str
+    textList: List[TextList] = Field(default_factory=list)
+    historyTextList: Optional[List[HistoryTextList]] = None
+    sectionReviewRule: Optional[str] = None
+    industry: Optional[str] = None
     title: str
-    text: Optional[str] = None
-    task: str
-    sessionId: Optional[str] = None
-    historyText: Optional[List[HistorySection]] = None
-    heuristicPrompt: Optional[str] = None
-    messages: List[Message] = []
-    stream: Optional[bool] = True
+    idea: Optional[str] = None
+    sessionId: str
+    sectionTitle: str
+    prompt: Optional[Prompts] = None
 
 
 class HeuristicMessageRequest(BaseModel):
-    nodeId: str
-    title: str
-    task: str
-    sessionId: Optional[str] = None
-    messages: List[Message]
-    heuristicPrompt: Optional[str] = None
-    stream: Optional[bool] = True
+    Messages: List[Message]
+    sessionId: str
+    stream: str
 
 
 class HeuristicResponse(BaseModel):
-    nodeId: str
-    title: str
-    task: str
-    status: str
+    sessionId: str
+    status: Literal["ask", "draft"]
     assistantMessage: Message
-
-
-class SectionText(BaseModel):
-    nodeId: str
-    level: int
-    title: str
-    text: str
 
 
 class ReviewDetail(BaseModel):
-    score: int
-    summaryList: List[str]
-    detail: str
-    helpList: Optional[List[str]] = None
+    score: Union[int, str]
+    evaluate: Optional[str] = None
+    suggestion: Optional[str] = None
+    to_do_list: Optional[List[str]] = None
 
 
 class SectionReviewRequest(BaseModel):
-    task: str
-    nodeId: str
-    title: str
-    text: List[SectionText]
-    historyText: Optional[List[dict]] = None
-    reviewpPrompt: Optional[str] = None
+    textList: List[TextList] = Field(default_factory=list)
+    sectionWriteRule: str
+    sectionReviewRule: str
     industry: Optional[str] = None
+    historyTextList: Optional[List[HistoryTextList]] = None
+    title: str
+    sectionTitle: str
+    prompt: Optional[Prompts] = None
 
 
 class SectionReviewResponse(BaseModel):
-    task: str
-    title: str
-    nodeId: str
     review: ReviewDetail
 
 
-class HelpListResponse(BaseModel):
-    task: str
+class ChapterReviewRequest(BaseModel):
+    textList: List[TextList] = Field(default_factory=list)
+    chapterWriteRule: str
+    chapterReviewRule: str
+    industry: Optional[str] = None
+    historyTextList: Optional[List[HistoryTextList]] = None
     title: str
-    nodeId: str
-    helpList: List[str]
+    chapterTitle: str
+    prompt: Optional[Prompts] = None
+
+
+class ChapterReviewResponse(BaseModel):
+    review: ReviewDetail
+
+
+class WriteRuleIn(BaseModel):
+    chapterWriteRule: Optional[str] = None
+    sectionWriteRule: Optional[str] = None
+
+    @model_validator(mode="after")
+    def exactly_one(cls, m):
+        has_ch = m.chapterWriteRule is not None and m.chapterWriteRule != ""
+        has_se = m.sectionWriteRule is not None and m.sectionWriteRule != ""
+        if has_ch == has_se:
+            raise ValueError("必须且只能传入 chapterWriteRule 或 sectionWriteRule 其中一个")
+        return m
 
 
 class ICanCreateRequest(BaseModel):
-    task: str
-    nodeId: str
-    title: str
-    text: List[SectionText]
     sessionId: str
-    sessionText: str
-    helpText: Optional[str] = None
-    helpPrompt: Optional[str] = None
-    messages: List[Message] = []
-    stream: Optional[bool] = False
+    textList: List[TextList] = Field(default_factory=list)
+    review: ReviewDetail
+    writeRule: WriteRuleIn
+    helpText: str
+    prompt: Optional[Prompts] = None
 
 
 class ICanMessageRequest(BaseModel):
-    task: str
-    nodeId: str
-    title: str
     sessionId: str
-    messages: Optional[List[Message]] = None
-    message: Optional[Message] = None
-    helpPrompt: Optional[str] = None
-    stream: Optional[bool] = False
+    messages: List[Message] = Field(default_factory=list)
+    stream: Optional[bool] = True
 
 
 class ICanResponse(BaseModel):
-    task: str
-    nodeId: str
-    title: str
     sessionId: str
     assistantMessage: Message
 
 
-class SessionMessage(BaseModel):
-    messageId: str
-    role: str
-    content: str
-    attachmentPath: Optional[List[str]] = None
-
-
 class SessionItem(BaseModel):
-    sesstionId: str
-    messages: List[SessionMessage]
+    sessionId: str
+    messages: List[Message] = Field(default_factory=list)
 
 
 class MergeRequest(BaseModel):
-    nodeId: str
-    title: str
-    task: str
-    text: List[SectionText]
-    sessionList: List[SessionItem]
-    mergePrompt: Optional[str] = None
-    historyText: Optional[List[dict]] = None
-    stream: Optional[bool] = False
+    writeRule: WriteRuleIn
+    textList: List[TextList] = Field(default_factory=list)
+    sessionList: List[SessionItem] = Field(default_factory=list)
+    historyTextList: Optional[List[HistoryTextList]] = None
+    review: ReviewDetail
+    industry: Optional[str] = None
+    prompt: Optional[Prompts] = None
 
 
 class MergeResponse(BaseModel):
-    nodeId: str
-    title: str
-    task: str
-    texts: List[SectionText]
+    text: str
 
 
-class FullReviewSection(BaseModel):
-    nodeId: str
-    title: str
-    level: int
-    children: List[SectionText]
+class ChapterReview(BaseModel):
+    chapterId: str
+    chapterTitle: str
+    review: ReviewDetail
 
 
 class FullReviewRequest(BaseModel):
-    task: str
-    fullText: List[FullReviewSection]
-    reviews: Optional[List[dict]] = None
-    fullReviewPrompt: Optional[str] = None
-    stream: Optional[bool] = False
+    title: str
+    reviews: List[ChapterReview] = Field(default_factory=list)
+    fullReviewText: str
+    prompt: Optional[Prompts] = None
 
 
 class FullReviewResponse(BaseModel):
-    task: str
     fullReviewAns: str
 
 
 class FullPolishRequest(BaseModel):
     task: str
-    fullText: List[FullReviewSection]
+    fullText: List[HistoryTextList]
     polishPrompt: Optional[str] = None
     stream: Optional[bool] = False
 
 
 class FullPolishResponse(BaseModel):
     task: str
-    newFullText: List[FullReviewSection]
+    newFullText: List[HistoryTextList]
 
 
 class TextRestructRequest(BaseModel):
@@ -224,16 +256,18 @@ class TextRestructRequest(BaseModel):
     file_path: str
     restructPrompt: Optional[str] = None
     outlinePrompt: Optional[str] = None
+    industry: Optional[str] = None
 
 
 class TextRestructResponse(BaseModel):
     docGuide: str
     outline: List[OutlineNode]
-    fullText: List[FullReviewSection]
+    fullText: List[HistoryTextList]
 
 
 class KBDocumentActionRequest(BaseModel):
     action: str
+    projectId: str = Field(..., description="写作任务Id")
     document_id: str
     file_url: Optional[str] = None
     filename: Optional[str] = None
@@ -241,4 +275,16 @@ class KBDocumentActionRequest(BaseModel):
 
 class KBDocumentActionResponse(BaseModel):
     document_id: str
-    status: str
+    status: Literal["indexed", "deleted"]
+
+
+class FloatRequest(BaseModel):
+    sectionTitle: str
+    TextList: List[TextList] = Field(default_factory=list)
+    targetText: Optional[str] = None
+    userInput: Optional[str] = None
+    prompt: Optional[Prompts] = None
+
+
+class FloatResponse(BaseModel):
+    floatText: str
