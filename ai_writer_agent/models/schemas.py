@@ -31,6 +31,7 @@ class TextList(BaseModel):
     sectionId: str
     sectionTitle: str
     text: str
+    attachments_url: Optional[Dict[str, str]] = None
 
 
 class HistoryTextList(BaseModel):
