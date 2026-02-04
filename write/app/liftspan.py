@@ -67,7 +67,7 @@ async def lifespan(app: FastAPI):
     # services：注入 agents
     kb_service = KBService(store=store)
     chat_service = ChatService(heuristic_agent=heuristic_agent, help_agent=help_agent)
-    others_service = OthersService(float_agent=float_agent, 
+    others_service = OthersService(floatAns_agent=float_agent, 
                                    industry_agent=industry_agent, 
                                    review_agent=review_agent,
                                    merge_agent=merge_agent,
