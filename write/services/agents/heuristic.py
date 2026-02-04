@@ -8,6 +8,7 @@ import re
 from typing import Any, AsyncIterator, Dict, List, Optional, TypedDict, Tuple
 
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import StateGraph
 
 from models.llm_interface_async import (
@@ -70,12 +71,17 @@ class HeuristicAgent:
       HumanMessage(trigger)                     # 短触发
     """
 
-    def __init__(self, kb) -> None:
+    def __init__(
+        self,
+        *,
+        kb: Optional[Any] = None,
+        checkpointer: Optional[BaseCheckpointSaver] = None,
+    ) -> None:
         g = StateGraph(HeuristicState)
         g.add_node("merge", self._merge_node)
         g.set_entry_point("merge")
         g.set_finish_point("merge")
-        self.graph = g.compile(checkpointer=MemorySaver())
+        self.graph = g.compile(checkpointer=checkpointer or MemorySaver())
         self._ph_map = dict(DEFAULT_PLACEHOLDER_MAP)
         self._kb_client = kb
 

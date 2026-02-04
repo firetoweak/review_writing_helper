@@ -1,8 +1,14 @@
 from __future__ import annotations
 from contextlib import asynccontextmanager
+import os
 from fastapi import FastAPI
 
-from infra.persistence.checkpointer_pg import init_checkpointer, PgCheckpointSettings
+from infra.persistence.checkpointer_pg import (
+    init_checkpointer,
+    close_checkpointer,
+    PgCheckpointSettings,
+)
+from config import load_config
 from services.agents.heuristic import HeuristicAgent
 from services.agents.help import HelpAgent
 
@@ -31,7 +37,13 @@ _EMBEDDING_MODEL = "/home/netzone22/data/LLM/Qwen3-Embedding-8B"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    checkpointer = await init_checkpointer(PgCheckpointSettings(dsn="postgresql://..."))
+    cfg = load_config()
+    dsn = os.getenv("CHECKPOINT_DSN") or os.getenv("DATABASE_URL")
+    if not dsn:
+        db_name = os.getenv("DB_NAME") or "writing_checkpoint_db"
+        if cfg.db_host and cfg.db_port and cfg.db_user and cfg.db_password:
+            dsn = f"postgresql://{cfg.db_user}:{cfg.db_password}@{cfg.db_host}:{cfg.db_port}/{db_name}"
+    checkpointer = await init_checkpointer(PgCheckpointSettings(dsn=dsn)) if dsn else None
     
     store = KBStore(
         base_dir=_KB_BASE_DIR,
@@ -42,8 +54,8 @@ async def lifespan(app: FastAPI):
     kb_client = KBClient(store)    
     
     # agents：注入 checkpointer, kb_client
-    heuristic_agent = HeuristicAgent(checkpointer=checkpointer)
-    help_agent = HelpAgent(checkpointer=checkpointer)
+    heuristic_agent = HeuristicAgent(checkpointer=checkpointer, kb=kb_client)
+    help_agent = HelpAgent(checkpointer=checkpointer, kb=kb_client)
 
     float_agent = FloatAgent()
     industry_agent = IndustryAgent()
@@ -72,4 +84,8 @@ async def lifespan(app: FastAPI):
         kb_admin_service=kb_service,
         review_service=None,  # 逐步迁移，先留空也行
     )
-    yield
+    try:
+        yield
+    finally:
+        if checkpointer is not None:
+            await close_checkpointer()

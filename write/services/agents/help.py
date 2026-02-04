@@ -4,6 +4,7 @@ import json, re, itertools
 from typing import Any, AsyncIterator, Dict, List, Optional, TypedDict, Tuple
 
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph import StateGraph
 
 from models.llm_interface_async import build_chat_model, build_messages, is_llm_configured, is_vlm_configured
@@ -33,9 +34,14 @@ class HelpState(TypedDict, total=False):
 
 
 class HelpAgent:
-    def __init__(self, kb) -> None:
+    def __init__(
+        self,
+        *,
+        kb: Optional[Any] = None,
+        checkpointer: Optional[BaseCheckpointSaver] = None,
+    ) -> None:
         self._counter = itertools.count(1)
-        self._checkpointer = MemorySaver()
+        self._checkpointer = checkpointer or MemorySaver()
         self._ph_map = dict(DEFAULT_PLACEHOLDER_MAP)
         self._session_kb = SessionKB()
         self.kb_client = kb
