@@ -33,6 +33,7 @@ async def init_checkpointer(cfg: PgCheckpointSettings) -> AsyncPostgresSaver:
     await _pool.open()
 
     _saver = AsyncPostgresSaver(_pool)
+    await _saver.setup()
     return _saver
 
 async def close_checkpointer() -> None:

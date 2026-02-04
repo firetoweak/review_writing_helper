@@ -2,6 +2,9 @@ app_name: review-writing-helper
 llm_api_key:
 llm_base_url:
 
+checkpoint_dsn:
+db_name:
+
 db_host:
 db_port:
 db_user:

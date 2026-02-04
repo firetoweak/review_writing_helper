@@ -57,6 +57,8 @@ class AppConfig:
     app_name: str = "review-writing-helper"
     llm_api_key: Optional[str] = None
     llm_base_url: Optional[str] = None
+    checkpoint_dsn: Optional[str] = None
+    db_name: Optional[str] = None
     db_host: Optional[str] = None
     db_port: Optional[int] = None
     db_user: Optional[str] = None
@@ -73,6 +75,8 @@ def load_config(yaml_path: Optional[str] = None) -> AppConfig:
         app_name=str(cfg.get("app_name") or DEFAULT_CONFIG.app_name),
         llm_api_key=cfg.get("llm_api_key"),
         llm_base_url=cfg.get("llm_base_url"),
+        checkpoint_dsn=cfg.get("checkpoint_dsn"),
+        db_name=cfg.get("db_name"),
         db_host=cfg.get("db_host"),
         db_port=cfg.get("db_port"),
         db_user=cfg.get("db_user"),
