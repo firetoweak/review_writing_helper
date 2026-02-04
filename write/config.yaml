@@ -1,0 +1,34 @@
+app_name: review-writing-helper
+llm_api_key:
+llm_base_url:
+
+db_host:
+db_port:
+db_user:
+db_password:
+
+chatllm:
+  base_url: 
+  api_key:
+  model:
+
+chatvlm:
+  base_url: http://localhost:30011/v1
+  api_key: null
+  model: /home/netzone22/data/LLM/Qwen3-VL-32B-Instruct
+
+
+models:
+  llm_fast:
+    base_url: "http://127.0.0.1:30002/v1"
+    model: "qwen2.5-14b"
+    api_key: "EMPTY"
+  llm_strong:
+    base_url: "http://127.0.0.1:30003/v1"
+    model: "qwen2.5-72b"
+    api_key: "EMPTY"
+  vlm_a3b_Thinking:
+    base_url: http://localhost:30005/v1
+    model: /home/netzone22/data/LLM/Qwen3-VL-30B-A3B-Thinking
+    api_key: null
+    max_tokens: 20000
