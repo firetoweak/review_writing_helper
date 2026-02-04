@@ -38,9 +38,9 @@ _EMBEDDING_MODEL = "/home/netzone22/data/LLM/Qwen3-Embedding-8B"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     cfg = load_config()
-    dsn = os.getenv("CHECKPOINT_DSN") or os.getenv("DATABASE_URL")
+    dsn = os.getenv("CHECKPOINT_DSN") or os.getenv("DATABASE_URL") or cfg.checkpoint_dsn
     if not dsn:
-        db_name = os.getenv("DB_NAME") or "writing_checkpoint_db"
+        db_name = os.getenv("DB_NAME") or cfg.db_name or "writing_checkpoint_db"
         if cfg.db_host and cfg.db_port and cfg.db_user and cfg.db_password:
             dsn = f"postgresql://{cfg.db_user}:{cfg.db_password}@{cfg.db_host}:{cfg.db_port}/{db_name}"
     checkpointer = await init_checkpointer(PgCheckpointSettings(dsn=dsn)) if dsn else None
