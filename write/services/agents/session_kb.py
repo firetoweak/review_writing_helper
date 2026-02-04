@@ -4,9 +4,7 @@ import re
 from typing import Any, Dict, List, Tuple
 
 from services.agents.kb import KBStore  # type: ignore
-from services.kb_client import KBClient  # type: ignore
-
-
+from infra.kb.kb_client import KBClient 
 
 _IMAGE_TAG_RE = re.compile(r"\[IMAGE_(\d+)\]")
 
