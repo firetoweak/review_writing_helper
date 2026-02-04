@@ -12,7 +12,7 @@ async def heuristic_start(request: HeuristicCreateRequest, ctx: AppContext = Dep
     payload = request.model_dump(exclude_unset=True, exclude_none=True)
     if payload.get("stream", True):
         return StreamingResponse(ctx.chat_service.heuristic_stream(payload), media_type="application/x-ndjson")
-    return await ctx.start_heuristic(payload)
+    return await ctx.chat_service.heuristic_stream(payload)
 
 
 @router.post("/api/heuristic-writing/message")
@@ -20,4 +20,4 @@ async def heuristic_message(request: HeuristicCreateRequest, ctx: AppContext = D
     payload = request.model_dump(exclude_unset=True, exclude_none=True)
     if payload.get("stream", True):
         return StreamingResponse(ctx.chat_service.heuristic_stream(payload), media_type="application/x-ndjson")
-    return await ctx.start_heuristic(payload)
+    return await ctx.chat_service.heuristic_stream(payload)
