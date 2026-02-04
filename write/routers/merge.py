@@ -7,4 +7,4 @@ router = APIRouter()
 
 @router.post("/api/merge")
 async def merge_endpoint(request: MergeRequest, ctx: AppContext = Depends(get_ctx)):
-    return await ctx.chat_service.merge_texts(request.model_dump())
+    return await ctx.others_service.merge_texts(request.model_dump())
