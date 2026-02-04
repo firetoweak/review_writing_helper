@@ -4,9 +4,8 @@ import os
 from fastapi import FastAPI
 
 from infra.persistence.checkpointer_pg import (
-    init_checkpointer,
     close_checkpointer,
-    PgCheckpointSettings,
+    ensure_checkpoint_tables,
 )
 from config import load_config
 from services.agents.heuristic import HeuristicAgent
@@ -43,7 +42,7 @@ async def lifespan(app: FastAPI):
         db_name = os.getenv("DB_NAME") or cfg.db_name or "writing_checkpoint_db"
         if cfg.db_host and cfg.db_port and cfg.db_user and cfg.db_password:
             dsn = f"postgresql://{cfg.db_user}:{cfg.db_password}@{cfg.db_host}:{cfg.db_port}/{db_name}"
-    checkpointer = await init_checkpointer(PgCheckpointSettings(dsn=dsn)) if dsn else None
+    checkpointer = await ensure_checkpoint_tables(dsn) if dsn else None
     
     store = KBStore(
         base_dir=_KB_BASE_DIR,
