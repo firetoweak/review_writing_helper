@@ -254,9 +254,7 @@ class HeuristicAgent:
                     for x in [
                         str(payload.get("title") or "").strip(),
                         str(payload.get("idea") or "").strip(),
-                        str(payload.get("industry") or "").strip(),
                         str(payload.get("materials") or "").strip(),
-                        str(payload.get("requirements") or "").strip(),
                     ]
                     if x
                 ),
@@ -305,7 +303,7 @@ class HeuristicAgent:
     @staticmethod
     def _build_kb_query(ctx: Dict[str, str], *, extra: str = "") -> str:
         parts: List[str] = []
-        for k in ("title", "idea", "industry"):
+        for k in ("title", "idea"):
             v = (ctx.get(k) or "").strip()
             if v:
                 parts.append(v)
