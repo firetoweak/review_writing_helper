@@ -14,6 +14,9 @@ class ChatService:
         async for line in self.heuristic_agent.stream(payload):
             yield line
 
+    async def heuristic_run(self, payload: dict) -> dict:
+        return await self.heuristic_agent.run(payload)
+
     async def help_stream(self, payload: dict):
         async for line in self.help_agent.stream(payload):
             yield line
