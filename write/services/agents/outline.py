@@ -324,10 +324,6 @@ class OutlineAgent:
 
         has_tags = prompt_has_image_tags(prompt)
 
-        # 有图片标签：必须配置 VLM（否则 build_messages 会在多模态切分时失败）
-        if has_tags and not is_vlm_configured():
-            raise ValueError("prompt 中包含 [IMAGE_n]，但未配置 VLM（chatvlm.base_url 为空）。")
-
         if not (is_llm_configured() or is_vlm_configured()):
             raise ValueError("未配置任何可用模型（chatllm/chatvlm.base_url 都为空），无法生成 outline/keypoints。")
 
@@ -338,8 +334,6 @@ class OutlineAgent:
         image_map = image_map or {}
 
         has_tags = prompt_has_image_tags(prompt)
-        if has_tags and not image_map:
-            raise ValueError("Prompt 中包含 [IMAGE_n]，但 image_map 为空（未提供 image_url 映射）。")
 
         # ✅ 选择模型：有标签走 VLM；无标签优先 LLM（若没配 LLM 则退到 VLM）
         use_multimodal = True
