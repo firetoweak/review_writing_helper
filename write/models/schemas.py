@@ -202,6 +202,7 @@ class ICanCreateRequest(BaseModel):
     sectionWriteRule: Optional[str] = None
     helpText: str
     prompt: Optional[Prompts] = None
+    stream: Optional[bool] = True
 
 
 class ICanMessageRequest(BaseModel):
