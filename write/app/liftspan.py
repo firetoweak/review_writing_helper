@@ -81,7 +81,7 @@ async def lifespan(app: FastAPI):
         chat_service=chat_service,
         others_service=others_service,
         kb_admin_service=kb_service,
-        review_service=None,  # 逐步迁移，先留空也行
+        kb_query_service=None,
     )
     try:
         yield

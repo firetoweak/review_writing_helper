@@ -1,6 +1,6 @@
 from __future__ import annotations
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 @dataclass
 class AppContext:
@@ -14,4 +14,4 @@ class AppContext:
     chat_service: Any       # 多轮对话
     others_service: Any     # 其他功能（如大纲、关键点等）
     kb_admin_service: Any   # 导入/删除/清理
-    kb_query_service: Any   # 检索
+    kb_query_service: Optional[Any]   # 检索
