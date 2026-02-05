@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+import hashlib
 from enum import Enum
 import re
 from typing import Any, AsyncIterator, Dict, List, Optional, TypedDict, Tuple
@@ -18,7 +19,6 @@ from models.llm_interface_async import (
 )
 from tools.prompt_templating import build_ctx, build_image_map, render_prompt, replace_image_tags_with_markdown, DEFAULT_PLACEHOLDER_MAP
 from tools.verify import SmartVerifierCore, my_check_batch
-import asyncio
 
 
 MAX_QUESTIONS = 5
@@ -47,6 +47,9 @@ class HeuristicState(TypedDict, total=False):
 
     # optional persisted correct template (so draft->correct always works)
     correct_tpl: str
+
+    # KB retrieval snapshot for section-level reuse
+    kb_snapshot: Dict[str, Any]
 
     # multimodal mapping
     image_map: Dict[str, str]
@@ -239,13 +242,17 @@ class HeuristicAgent:
                     if x
                 ),
             )
-            await self._ainject_kb_materials(
+            kb_snapshot = await self._ainject_kb_materials(
                 payload,
                 ctx,
                 query_text=query_text,
                 project_id=project_id,
+                snapshot=current.get("kb_snapshot"),
+                reuse_snapshot=True,
                 top_k=int(payload.get("kbTopK", 3) or 3),
             )
+            if kb_snapshot:
+                out["kb_snapshot"] = kb_snapshot
 
             # 如 KB 注入了 image_maps，使用统一逻辑合并进 image_map
             merged_map.update(build_image_map(payload))
@@ -297,25 +304,73 @@ class HeuristicAgent:
         *,
         query_text: str,
         project_id: str,
+        snapshot: Optional[Dict[str, Any]] = None,
+        reuse_snapshot: bool = True,
         top_k: int = 3,
-    ) -> None:
+    ) -> Optional[Dict[str, Any]]:
         if not payload.get("useKB", True):
-            return
+            return snapshot
         if not self._kb_client or not project_id or not query_text:
-            return
+            return snapshot
 
-        hits, image_maps = await asyncio.to_thread(
-            self._kb_client.search,
-            project_id=project_id,
+        section_id = str(payload.get("sectionId") or ctx.get("sectionId") or "").strip()
+        section_title = str(payload.get("sectionTitle") or ctx.get("sectionTitle") or "").strip()
+
+        context_fingerprint = self._build_context_fingerprint(
+            section_id=section_id,
             query_text=query_text,
-            top_k=top_k,
+            ctx=ctx,
         )
 
-        hits_text = "\n".join(
-            h.document.strip()
-            for h in (hits or [])
-            if getattr(h, "document", None) and str(h.document).strip()
-        ).strip()
+        if hasattr(self._kb_client, "search_section") and section_id:
+            kb_snapshot = await asyncio.to_thread(
+                self._kb_client.search_section,
+                project_id=project_id,
+                section_id=section_id,
+                section_title=section_title,
+                context_fingerprint=context_fingerprint,
+                snapshot=snapshot,
+                reuse_snapshot=reuse_snapshot,
+                k_each=max(1, top_k),
+                k_total=max(1, top_k * 4),
+            )
+            hits = kb_snapshot.get("hits") or []
+            hits_text = "\n".join(
+                str(h.get("document") or "").strip()
+                for h in hits
+                if isinstance(h, dict) and str(h.get("document") or "").strip()
+            ).strip()
+            image_maps = kb_snapshot.get("image_maps") or {}
+        else:
+            hits, image_maps = await asyncio.to_thread(
+                self._kb_client.search,
+                project_id=project_id,
+                query_text=query_text,
+                top_k=top_k,
+            )
+
+            hits_text = "\n".join(
+                h.document.strip()
+                for h in (hits or [])
+                if getattr(h, "document", None) and str(h.document).strip()
+            ).strip()
+            kb_snapshot = {
+                "section_id": section_id,
+                "section_title": section_title,
+                "fingerprint": context_fingerprint,
+                "queries": [query_text],
+                "hits": [
+                    {
+                        "id": getattr(h, "id", ""),
+                        "document": getattr(h, "document", ""),
+                        "metadata": getattr(h, "metadata", {}) or {},
+                        "distance": getattr(h, "distance", None),
+                    }
+                    for h in (hits or [])
+                ],
+                "image_maps": image_maps,
+            }
+
 
         if image_maps:
             payload["image_maps"] = image_maps
@@ -323,6 +378,22 @@ class HeuristicAgent:
         # 按需求优先使用 KB 命中替换 materials
         if hits_text:
             ctx["materials"] = hits_text
+
+        return kb_snapshot
+
+    @staticmethod
+    def _build_context_fingerprint(*, section_id: str, query_text: str, ctx: Dict[str, str]) -> str:
+        src = {
+            "section_id": section_id,
+            "query_text": query_text,
+            "title": (ctx.get("title") or "").strip(),
+            "idea": (ctx.get("idea") or "").strip(),
+            "industry": (ctx.get("industry") or "").strip(),
+            "section_title": (ctx.get("sectionTitle") or "").strip(),
+            "section_rule": (ctx.get("sectionWriteRule") or "").strip(),
+        }
+        raw = json.dumps(src, ensure_ascii=False, sort_keys=True)
+        return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     # =========================
     # Phase logic
