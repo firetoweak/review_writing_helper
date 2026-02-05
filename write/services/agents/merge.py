@@ -128,10 +128,6 @@ class MergeAgent:
     ) -> list:
         has_tags = prompt_has_image_tags(prompt)
 
-        # 有图片标签：必须走 VLM（否则 build_messages 也会报错）
-        if has_tags and not is_vlm_configured():
-            raise ValueError("merge prompt 中包含 [IMAGE_n]，但未配置 VLM（chatvlm.base_url 为空）。")
-
         # 只要任一模型可用，就走模型；都不可用才 fallback
         if is_llm_configured() or is_vlm_configured():
             return await self._llm_merge(prompt, image_map=image_map, model_name=model_name)
@@ -150,8 +146,6 @@ class MergeAgent:
         image_map = image_map or {}
 
         has_tags = prompt_has_image_tags(prompt)
-        if has_tags and not image_map:
-            raise ValueError("Prompt 中包含 [IMAGE_n]，但 image_map 为空（未提供 image_url 映射）。")
 
         # ✅ 选择模型：有标签走 VLM；无标签优先 LLM（若没配 LLM 则退到 VLM）
         use_multimodal = has_tags or (not is_llm_configured() and is_vlm_configured())
