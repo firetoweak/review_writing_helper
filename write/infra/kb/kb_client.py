@@ -5,12 +5,28 @@ from typing import Any, Dict, List, Optional, Tuple
 import math
 
 
+SECTION_QUERIES: Dict[str, List[str]] = {}
+
+
 @dataclass
 class KBHit:
     id: str
     document: str
     metadata: Dict[str, Any]
     distance: Optional[float] = None
+
+
+def hits_to_dicts(hits: List[KBHit]) -> List[Dict[str, Any]]:
+    """Serialize KBHit list to JSON-safe dicts for snapshots/state."""
+    return [
+        {
+            "id": h.id,
+            "document": h.document,
+            "metadata": h.metadata,
+            "distance": h.distance,
+        }
+        for h in hits
+    ]
 
 
 class KBClient:
@@ -323,6 +339,104 @@ class KBClient:
         hits.sort(key=_chunk_key)
         return hits
 
+    def search_multi(
+        self,
+        *,
+        project_id: str,
+        queries: List[str],
+        k_each: int = 4,
+        k_total: int = 8,
+        where: Optional[Dict[str, Any]] = None,
+        document_id: Optional[str] = None,
+        include: Optional[List[str]] = None,
+        long_query_strategy: str = "split",
+        strip_legacy_footer: bool = True,
+        return_image_maps: bool = True,
+    ) -> Tuple[List[KBHit], Dict[str, Dict[str, str]]]:
+        """Run per-query search, then merge/dedupe with final quota control."""
+        merged: Dict[str, KBHit] = {}
+        for q in queries or []:
+            q = (q or "").strip()
+            if not q:
+                continue
+            hits, _ = self.search(
+                project_id=project_id,
+                query_text=q,
+                top_k=max(1, int(k_each)),
+                where=where,
+                document_id=document_id,
+                include=include,
+                long_query_strategy=long_query_strategy,
+                strip_legacy_footer=strip_legacy_footer,
+                return_image_maps=False,
+            )
+            for h in hits:
+                meta = h.metadata or {}
+                doc_id = str(meta.get("doc_id") or "")
+                chunk_id = meta.get("chunk_id")
+                dedupe_key = f"{doc_id}::{chunk_id}" if doc_id and chunk_id not in (None, "") else f"id::{h.id}"
+                old = merged.get(dedupe_key)
+                if old is None:
+                    merged[dedupe_key] = h
+                    continue
+                old_d, new_d = old.distance, h.distance
+                if old_d is None or (new_d is not None and new_d < old_d):
+                    merged[dedupe_key] = h
+
+        final_hits = sorted(merged.values(), key=lambda h: (h.distance is None, h.distance))[: max(1, int(k_total))]
+        image_maps: Dict[str, Dict[str, str]] = {}
+        if return_image_maps:
+            image_maps = self.collect_image_url_maps(project_id=project_id, hits=final_hits)
+        return final_hits, image_maps
+
+    def search_section(
+        self,
+        *,
+        project_id: str,
+        section_id: str,
+        section_title: str,
+        context_fingerprint: Optional[str] = None,
+        snapshot: Optional[Dict[str, Any]] = None,
+        reuse_snapshot: bool = True,
+        k_each: int = 4,
+        k_total: int = 12,
+        where: Optional[Dict[str, Any]] = None,
+        document_id: Optional[str] = None,
+        include: Optional[List[str]] = None,
+        section_queries: Optional[Dict[str, List[str]]] = None,
+    ) -> Dict[str, Any]:
+        """Section-oriented retrieval with query fan-out + snapshot reuse."""
+        if (
+            reuse_snapshot
+            and snapshot
+            and snapshot.get("section_id") == section_id
+            and snapshot.get("fingerprint") == context_fingerprint
+        ):
+            return snapshot
+
+        query_bank = section_queries if section_queries is not None else SECTION_QUERIES
+        sub_queries = query_bank.get(section_id, [])
+        queries = [f"{section_title} | {q}" if section_title else q for q in sub_queries]
+
+        hits, image_maps = self.search_multi(
+            project_id=project_id,
+            queries=queries,
+            k_each=k_each,
+            k_total=k_total,
+            where=where,
+            document_id=document_id,
+            include=include,
+            return_image_maps=True,
+        )
+        return {
+            "section_id": section_id,
+            "section_title": section_title,
+            "fingerprint": context_fingerprint,
+            "queries": queries,
+            "hits": hits_to_dicts(hits),
+            "image_maps": image_maps,
+        }
+
     def list_document_ids(self, *, project_id: str) -> List[str]:
         """List doc_ids in a project. May be heavy for huge collections."""
         col = self.store._get_collection(project_id)
@@ -330,3 +444,18 @@ class KBClient:
         metas = res.get("metadatas") or []
         doc_ids = sorted({str(m.get("doc_id")) for m in metas if m and m.get("doc_id")})
         return doc_ids
+
+
+if __name__ == "__main__":
+    # Minimal demo (replace with real KBStore in actual runtime).
+    # from write.infra.kb.kb_store import KBStore
+    # store = KBStore(...)
+    # client = KBClient(store)
+    # snap = client.search_section(
+    #     project_id="demo-project",
+    #     section_id="1.2",
+    #     section_title="典型场景与痛点",
+    #     context_fingerprint="ctx-v1",
+    # )
+    # print(snap.keys())
+    print("KBClient demo: instantiate KBClient(real_store) and call search_section(...)")
