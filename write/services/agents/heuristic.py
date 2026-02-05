@@ -14,10 +14,9 @@ from langgraph.graph import StateGraph
 from models.llm_interface_async import (
     build_chat_model,
     build_messages,
-    extract_image_map_from_text_list,
     is_vlm_configured,
 )
-from tools.prompt_templating import build_ctx, render_prompt, replace_image_tags_with_markdown, DEFAULT_PLACEHOLDER_MAP
+from tools.prompt_templating import build_ctx, build_image_map, render_prompt, replace_image_tags_with_markdown, DEFAULT_PLACEHOLDER_MAP
 from tools.verify import SmartVerifierCore, my_check_batch
 import asyncio
 
@@ -214,26 +213,7 @@ class HeuristicAgent:
 
         # image map: merge incrementally
         merged_map: Dict[str, str] = dict(current.get("image_map") or {})
-
-        # top-level image map
-        for k in ("image_map", "imageMap", "image_url", "imageUrl"):
-            m = payload.get(k)
-            if isinstance(m, dict):
-                for kk, vv in m.items():
-                    if kk and vv:
-                        merged_map[str(kk)] = str(vv)
-
-        # from textList items: {"image_url": {"[IMAGE_1]": "..."}}
-        tl = payload.get("textList")
-        if isinstance(tl, list):
-            merged_map.update(extract_image_map_from_text_list(tl))
-
-        # merge kb image_maps if provided
-        image_maps = payload.get("image_maps")
-        if isinstance(image_maps, dict):
-            for kk, vv in image_maps.items():
-                if kk and vv:
-                    merged_map[str(kk)] = str(vv)
+        merged_map.update(build_image_map(payload))
 
         if merged_map:
             out["image_map"] = merged_map
@@ -267,14 +247,10 @@ class HeuristicAgent:
                 top_k=int(payload.get("kbTopK", 3) or 3),
             )
 
-            # 如 KB 注入了 image_maps，合并进 image_map
-            image_maps = payload.get("image_maps")
-            if isinstance(image_maps, dict):
-                for kk, vv in image_maps.items():
-                    if kk and vv:
-                        merged_map[str(kk)] = str(vv)
-                if merged_map:
-                    out["image_map"] = merged_map
+            # 如 KB 注入了 image_maps，使用统一逻辑合并进 image_map
+            merged_map.update(build_image_map(payload))
+            if merged_map:
+                out["image_map"] = merged_map
 
             context_text = render_prompt(writing_tpl, ctx, self._ph_map, keep_unknown=True)
 
