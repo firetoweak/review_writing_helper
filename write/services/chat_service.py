@@ -17,3 +17,6 @@ class ChatService:
     async def help_stream(self, payload: dict):
         async for line in self.help_agent.stream(payload):
             yield line
+
+    async def help_run(self, payload: dict) -> ICanResponse:
+        return await self.help_agent.run(payload)
