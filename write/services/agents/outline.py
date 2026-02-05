@@ -158,7 +158,6 @@ class OutlineAgent:
                 for x in [
                     str(payload.get("title") or "").strip(),
                     str(payload.get("idea") or "").strip(),
-                    str(payload.get("industry") or "").strip(),
                     str(payload.get("materials") or "").strip(),
                 ]
                 if x
@@ -272,7 +271,7 @@ class OutlineAgent:
     def _build_kb_query(ctx: Dict[str, str], *, extra: str = "") -> str:
         """拼一个相对稳的 query_text（KBClient 内部会做 token-safe split/truncate）。"""
         parts = []
-        for k in ("title", "idea", "industry"):
+        for k in ("title", "idea"):
             v = (ctx.get(k) or "").strip()
             if v:
                 parts.append(v)

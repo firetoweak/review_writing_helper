@@ -101,7 +101,6 @@ class HeuristicAgent:
         cfg = {"configurable": {"thread_id": f"heuristic:{key}:{session_id}"}}
 
 
-
         snap = await self.graph.aget_state(config=cfg)
         current = (snap.values if snap else {}) or {}
 
@@ -469,7 +468,7 @@ class HeuristicAgent:
             context_text=context_text,
             context_image_map=image_map,
             messages=history,
-            user_text="【系统提示，本次任务是追问】",
+            user_text="【你现在处于“启发式访谈阶段”，本阶段的唯一任务是提出下一条追问。你只允许输出一个问题句，不允许输出任何正文、总结或建议。】",
             image_map=None,
         )
 
