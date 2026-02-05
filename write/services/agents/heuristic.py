@@ -120,7 +120,7 @@ class HeuristicAgent:
             return
 
         # update state (first turn will materialize context_text & correct_tpl)
-        update = self._prepare_update_payload(session_id=session_id, project_id=project_id, payload=payload, current=current)
+        update = await self._prepare_update_payload(session_id=session_id, project_id=project_id, payload=payload, current=current)
         await self.graph.ainvoke(update, config=cfg)
 
         snap2 = await self.graph.aget_state(config=cfg)
@@ -196,7 +196,7 @@ class HeuristicAgent:
         merged = self._merge_by_message_id(history, incoming)
         return {"messages": merged, "incoming_messages": []}
 
-    def _prepare_update_payload(
+    async def _prepare_update_payload(
         self,
         *,
         session_id: str,
@@ -228,6 +228,13 @@ class HeuristicAgent:
         if isinstance(tl, list):
             merged_map.update(extract_image_map_from_text_list(tl))
 
+        # merge kb image_maps if provided
+        image_maps = payload.get("image_maps")
+        if isinstance(image_maps, dict):
+            for kk, vv in image_maps.items():
+                if kk and vv:
+                    merged_map[str(kk)] = str(vv)
+
         if merged_map:
             out["image_map"] = merged_map
 
@@ -239,7 +246,38 @@ class HeuristicAgent:
             # print("payload=", json.dumps(payload, ensure_ascii=False))
             ctx = build_ctx(payload)
 
-            # 添加知识库功能
+            # KB 检索：基于 title/idea/industry/materials 等字段构建 query，并注入 materials
+            query_text = self._build_kb_query(
+                ctx,
+                extra="\n".join(
+                    x
+                    for x in [
+                        str(payload.get("title") or "").strip(),
+                        str(payload.get("idea") or "").strip(),
+                        str(payload.get("industry") or "").strip(),
+                        str(payload.get("materials") or "").strip(),
+                        str(payload.get("requirements") or "").strip(),
+                    ]
+                    if x
+                ),
+            )
+            await self._ainject_kb_materials(
+                payload,
+                ctx,
+                query_text=query_text,
+                project_id=project_id,
+                top_k=int(payload.get("kbTopK", 3) or 3),
+            )
+
+            # 如 KB 注入了 image_maps，合并进 image_map
+            image_maps = payload.get("image_maps")
+            if isinstance(image_maps, dict):
+                for kk, vv in image_maps.items():
+                    if kk and vv:
+                        merged_map[str(kk)] = str(vv)
+                if merged_map:
+                    out["image_map"] = merged_map
+
             context_text = render_prompt(writing_tpl, ctx, self._ph_map, keep_unknown=True)
 
 
@@ -263,6 +301,54 @@ class HeuristicAgent:
                 out["correct_tpl"] = (prompt_obj.get("heuristicCorrectPrompt") or "").rstrip()
 
         return out
+
+    @staticmethod
+    def _build_kb_query(ctx: Dict[str, str], *, extra: str = "") -> str:
+        parts: List[str] = []
+        for k in ("title", "idea", "industry"):
+            v = (ctx.get(k) or "").strip()
+            if v:
+                parts.append(v)
+        if extra:
+            parts.append(extra.strip())
+        m = (ctx.get("materials") or "").strip()
+        if m:
+            parts.append(m)
+        return "\n\n".join([p for p in parts if p]).strip()
+
+    async def _ainject_kb_materials(
+        self,
+        payload: Dict[str, Any],
+        ctx: Dict[str, str],
+        *,
+        query_text: str,
+        project_id: str,
+        top_k: int = 3,
+    ) -> None:
+        if not payload.get("useKB", True):
+            return
+        if not self._kb_client or not project_id or not query_text:
+            return
+
+        hits, image_maps = await asyncio.to_thread(
+            self._kb_client.search,
+            project_id=project_id,
+            query_text=query_text,
+            top_k=top_k,
+        )
+
+        hits_text = "\n".join(
+            h.document.strip()
+            for h in (hits or [])
+            if getattr(h, "document", None) and str(h.document).strip()
+        ).strip()
+
+        if image_maps:
+            payload["image_maps"] = image_maps
+
+        # 按需求优先使用 KB 命中替换 materials
+        if hits_text:
+            ctx["materials"] = hits_text
 
     # =========================
     # Phase logic
