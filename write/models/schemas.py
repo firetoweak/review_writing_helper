@@ -140,6 +140,7 @@ class HeuristicCreateRequest(BaseModel):
     sessionId: str
     sectionTitle: str
     prompt: Optional[Prompts] = None
+    stream: Optional[bool] = True
 
 
 class HeuristicMessageRequest(BaseModel):
