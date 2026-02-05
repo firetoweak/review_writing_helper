@@ -9,6 +9,6 @@ class KBService:
     def __init__(self, *, store: Any):
         self.store = store
 
-    async def action(self, req: dict) -> FloatResponse:
+    async def action(self, req: dict) -> KBDocumentActionResponse:
         data = await run_in_threadpool(self.store.kb_action, req)
-        return FloatResponse(**data)
+        return KBDocumentActionResponse(**data)
