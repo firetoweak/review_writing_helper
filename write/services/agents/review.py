@@ -217,12 +217,6 @@ class ReviewAgent:
     ) -> Dict[str, Any]:
         prompt = (prompt or "").strip()
         has_tags = prompt_has_image_tags(prompt)
-
-        # 与 MergeAgent 保持一致：有 [IMAGE_n] 但没配置 VLM -> 直接报错更早暴露问题
-        # （否则 build_messages 也可能报错）
-        if has_tags and not is_vlm_configured():
-            raise ValueError("review prompt 中包含 [IMAGE_n]，但未配置 VLM（chatvlm.base_url 为空）。")
-
         return await self._llm_review(
             prompt=prompt,
             image_map=image_map if has_tags else None,
@@ -240,8 +234,6 @@ class ReviewAgent:
         image_map = image_map or {}
 
         has_tags = prompt_has_image_tags(prompt)
-        if has_tags and not image_map:
-            raise ValueError("Prompt 中包含 [IMAGE_n]，但 image_map 为空（未提供 image_url 映射）。")
 
         # ✅ 选择模型：有标签走 VLM；无标签优先 LLM（若没配 LLM 则退到 VLM）
         use_multimodal = has_tags or (not is_llm_configured() and is_vlm_configured())
