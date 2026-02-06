@@ -49,7 +49,7 @@ class KBStore:
         embedding_url: str = "http://127.0.0.1:30025/v1/embeddings",
         embedding_model: str = "/home/netzone22/data/LLM/Qwen3-Embedding-8B",
         embed_fn: Optional[Callable[[List[str]], List[List[float]]]] = None,
-        timeout_s: int = 30,
+        timeout_s: int = 120,
         embedding_batch_size: int = 64,
     ) -> None:
         self.base_dir = base_dir
