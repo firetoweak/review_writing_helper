@@ -292,18 +292,41 @@ class OutlineAgent:
         if not project_id or not query_text:
             return
 
-        hits, image_maps = await asyncio.to_thread(
-            self.kb.search,
-            project_id=project_id,
-            query_text=query_text,
-            top_k=top_k,
-        )
+        section_id = str(payload.get("sectionId") or ctx.get("sectionId") or "").strip()
+        section_title = str(payload.get("sectionTitle") or ctx.get("sectionTitle") or "").strip()
 
-        hits_text = "\n".join(
-            h.document.strip()
-            for h in (hits or [])
-            if getattr(h, "document", None) and str(h.document).strip()
-        ).strip()
+        if hasattr(self.kb, "search_section") and section_id:
+            kb_snapshot = await asyncio.to_thread(
+                self.kb.search_section,
+                project_id=project_id,
+                section_id=section_id,
+                section_title=section_title,
+                context_fingerprint=None,
+                snapshot=None,
+                reuse_snapshot=False,
+                k_each=max(1, top_k),
+                k_total=max(1, top_k * 4),
+            )
+            hit_dicts = kb_snapshot.get("hits") or []
+            hits_text = "\n".join(
+                str(h.get("document") or "").strip()
+                for h in hit_dicts
+                if isinstance(h, dict) and str(h.get("document") or "").strip()
+            ).strip()
+            image_maps = kb_snapshot.get("image_maps") or {}
+        else:
+            hits, image_maps = await asyncio.to_thread(
+                self.kb.search,
+                project_id=project_id,
+                query_text=query_text,
+                top_k=top_k,
+            )
+
+            hits_text = "\n".join(
+                h.document.strip()
+                for h in (hits or [])
+                if getattr(h, "document", None) and str(h.document).strip()
+            ).strip()
 
         if image_maps:
             # 让 build_image_map() 能把 KB 的 docmeta 映射纳入统一映射

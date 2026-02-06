@@ -23,20 +23,44 @@ class MergeAgent:
 
         ctx = build_ctx(payload)
 
-        # 知识库调用
+        # 知识库调用（优先走引导词检索）
         text = ctx['textList']
         projectId = payload.get("projectId") or ""
+        section_id = str(payload.get("sectionId") or ctx.get("sectionId") or "").strip()
+        section_title = str(payload.get("sectionTitle") or ctx.get("sectionTitle") or "").strip()
 
-        kb_hits, kb_image_maps  = self._kb_client.search(
-            query_text=text,
-            project_id=projectId,
-            top_k=3,
-        )
-        hits_text = "\n".join(
-            h.document.strip()
-            for h in kb_hits
-            if getattr(h, "document", None) and h.document.strip()
-        )
+        if hasattr(self._kb_client, "search_section") and projectId and section_id:
+            kb_snapshot = await asyncio.to_thread(
+                self._kb_client.search_section,
+                project_id=projectId,
+                section_id=section_id,
+                section_title=section_title,
+                context_fingerprint=None,
+                snapshot=None,
+                reuse_snapshot=False,
+                k_each=3,
+                k_total=12,
+            )
+            hit_dicts = kb_snapshot.get("hits") or []
+            hits_text = "\n".join(
+                str(h.get("document") or "").strip()
+                for h in hit_dicts
+                if isinstance(h, dict) and str(h.get("document") or "").strip()
+            ).strip()
+            kb_image_maps = kb_snapshot.get("image_maps") or {}
+        else:
+            kb_hits, kb_image_maps = await asyncio.to_thread(
+                self._kb_client.search,
+                query_text=text,
+                project_id=projectId,
+                top_k=3,
+            )
+            hits_text = "\n".join(
+                h.document.strip()
+                for h in (kb_hits or [])
+                if getattr(h, "document", None) and h.document.strip()
+            ).strip()
+
         if kb_image_maps:
             payload["image_maps"] = kb_image_maps
         ctx['materials'] = hits_text
@@ -60,7 +84,7 @@ class MergeAgent:
         # 校验
         correct_res = {"textList": []}
 
-        evidence_text = f"交互资料：{ctx.get("qa", "")}\n\n相关素材：{ctx.get("materials", "")}\n\n前文：{ctx.get("historyText", "")}"
+        evidence_text = f"交互资料：{ctx.get('qa', '')}\n\n相关素材：{ctx.get('materials', '')}\n\n前文：{ctx.get('historyText', '')}"
         print("======================一键合入===============================")
         print("校验资料：", evidence_text[:20])
         print("============================================================")
