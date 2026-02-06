@@ -13,7 +13,7 @@ from langchain_openai import ChatOpenAI
 _IMAGE_TAG_RE = re.compile(r"\[IMAGE_\d+\]")
 
 SYS_PROMPT_TEMPLATE ="Given the following conversation, relevant context, and a follow up question, reply with an answer to the current question the user is asking. Return only your response to the question given the above information following the users instructions as needed."
-
+RULE_SYS_PROMPT = "\n**所有的回答中，不要出现：“根据xx文档要求”或“按照资料x”等僵化描述类文字。**"
 
 
 @dataclass(frozen=True)
@@ -174,9 +174,11 @@ def build_messages(
     # print("len(system_prompt)", len(system_prompt or ""))
     # print("system_prompt:", system_prompt)
     # print("messages:", messages)
+    
     if not system_prompt:
         system_prompt = SYS_PROMPT_TEMPLATE
-        
+    system_prompt = system_prompt + RULE_SYS_PROMPT
+    
     out.append(SystemMessage(content=system_prompt))
 
     # ✅ context：只有在确实能匹配到映射时才走多模态
