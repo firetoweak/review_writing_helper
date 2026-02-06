@@ -151,11 +151,45 @@ class KBStore:
         persist_dir = os.path.join(self._project_dir(project_id), "chroma")
         os.makedirs(persist_dir, exist_ok=True)
 
-        client = chromadb.PersistentClient(
-            path=persist_dir,
-            settings=Settings(anonymized_telemetry=False),
-        )
+        try:
+            client = chromadb.PersistentClient(
+                path=persist_dir,
+                settings=Settings(anonymized_telemetry=False),
+            )
+        except ValueError as exc:
+            if "tenant" not in str(exc):
+                raise
+            client = self._bootstrap_default_tenant(persist_dir, exc)
         return client.get_or_create_collection(self.collection_name)
+
+    def _bootstrap_default_tenant(self, persist_dir: str, exc: Exception):
+        if not self._is_dir_empty(persist_dir):
+            raise exc
+
+        print(
+            f"[KBStore] Chroma tenant missing in empty directory. "
+            f"Bootstrapping default tenant at: {persist_dir}"
+        )
+        try:
+            legacy_settings = Settings(
+                anonymized_telemetry=False,
+                is_persistent=True,
+                persist_directory=persist_dir,
+            )
+        except TypeError:
+            legacy_settings = Settings(anonymized_telemetry=False)
+        try:
+            client = chromadb.Client(settings=legacy_settings)
+            client.get_or_create_collection(self.collection_name)
+            return client
+        except Exception:
+            raise exc
+
+    def _is_dir_empty(self, path: str) -> bool:
+        try:
+            return not any(os.scandir(path))
+        except FileNotFoundError:
+            return True
 
     # ----------------- CRUD internals -----------------
 
