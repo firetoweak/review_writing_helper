@@ -94,7 +94,7 @@ class MergeAgent:
             core = SmartVerifierCore()
             correct_text = await  core.verify_async(
                 original=ctx.get("textList", ""),
-                merged=json.dumps(item.get("text", ""), ensure_ascii=False, indent=2),
+                merged=item.get("text", ""),
                 evidence=evidence_text,
                 model=correct_model,
                 check_batch_fn=my_check_batch,

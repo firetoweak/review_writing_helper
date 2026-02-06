@@ -170,8 +170,8 @@ def build_messages(
 ) -> List[BaseMessage]:
     out: List[BaseMessage] = []
     # print("user_text:", user_text)
-    print("len(user_text)", len(user_text))
-    print("len(system_prompt)", len(system_prompt or ""))
+    # print("len(user_text)", len(user_text))
+    # print("len(system_prompt)", len(system_prompt or ""))
     # print("system_prompt:", system_prompt)
     # print("messages:", messages)
     if not system_prompt:

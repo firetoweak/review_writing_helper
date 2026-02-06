@@ -45,7 +45,7 @@ class SmartVerifierCore:
             return [text]
 
         pattern = (
-            r"([。！？；.!?;:\n])|"
+            r"([。！？；.!?;\n])|"
             r"(?<=，)(?=(?:"
             r"且|并且|而且|同时|以及|还|并|加上|"
             r"但|但是|然而|不过|可是|却|只是|"
@@ -62,8 +62,8 @@ class SmartVerifierCore:
         for part in parts:
             if not part:
                 continue
-            if re.match(r"^[。！？；.!?;:\n]$", part):
-                if chunks:
+            if re.match(r"^[。！？；.!?;\n]$", part):
+                if chunks:  
                     chunks[-1] += part
                 else:
                     current_chunk += part
@@ -71,7 +71,7 @@ class SmartVerifierCore:
                 if current_chunk:
                     chunks.append(current_chunk)
                     current_chunk = ""
-                clean_part = part.strip()
+                clean_part = part.rstrip()
                 if clean_part:
                     chunks.append(clean_part)
 
@@ -212,7 +212,7 @@ class SmartVerifierCore:
             if rid is None:
                 # 兜底：没有 id 就当 UNKNOWN
                 title = "证据不足：建议补充数据/上传报告/改成弱断言"
-                html_output += f'<span style="{style_unknown}" title="{title}">{text}</span>'
+                html_output += f'<span markdown="span" style="{style_unknown}" title="{title}">{text}</span>'
                 continue
 
             label = (ai_results_map.get(rid) or default_label).strip().upper()
@@ -220,13 +220,13 @@ class SmartVerifierCore:
 
             if label == "HALLUCINATION":
                 title = "证据未覆盖：建议删改/补充来源"
-                html_output += f'<span style="{style_hallucination}" title="{title}">{text}</span>'
+                html_output += f'<span markdown="span" style="{style_hallucination}" title="{title}">{text}</span>'
             elif label == "VALID":
                 title = f"证据命中：{quote}" if quote else "证据命中"
-                html_output += f'<span style="{style_valid}" title="{title}">{text}</span>'
+                html_output += f'<span markdown="span" style="{style_valid}" title="{title}">{text}</span>'
             else:
                 title = "证据不足：建议补充数据/上传报告/改成弱断言"
-                html_output += f'<span style="{style_unknown}" title="{title}">{text}</span>'
+                html_output += f'<span markdown="span" style="{style_unknown}" title="{title}">{text}</span>'
 
 
 
