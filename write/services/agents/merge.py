@@ -74,6 +74,7 @@ class MergeAgent:
             DEFAULT_PLACEHOLDER_MAP,
             keep_unknown=True,
         )
+        
         merged_texts = await self._run_merge_once(
             prompt=prompt,
             image_map=image_maps,

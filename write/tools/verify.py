@@ -238,9 +238,10 @@ class SmartVerifierCore:
         original: str,
         merged: str,
     ) -> str:
+        "只标识你新增了啥"
         plan = self.build_plan(original, merged)
         final_segments = plan["final_segments"]
-
+        style_valid = "color: #15803d; background-color: #dcfce7; border-bottom: 2px solid #86efac;"
         html_output = ""
         for seg in final_segments:
             t = seg["type"]
@@ -251,7 +252,7 @@ class SmartVerifierCore:
                 html_output += f"<del>{text}</del>"
             elif t == "pending":
                 # 直接认为 pending 全是“新增”
-                html_output += f'<span title="新增">{text}</span>'
+                html_output += f'<span markdown="span" style="{style_valid}" title="新增">{text}</span>'
 
         return html_output
     
