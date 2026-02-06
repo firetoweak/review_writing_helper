@@ -108,19 +108,18 @@ class ReviewAgent:
     # -------------------------
     # public
     # -------------------------
-    async def review_section(self, payload: Dict) -> Dict:
+    async def review(self, payload: Dict) -> Dict:
         prompt_obj = payload.get("prompt") or {}
-        section_review_prompt = prompt_obj.get("sectionReviewPrompt") or ""
-        # print("section_review_prompt:", section_review_prompt)
-        # print("小节评审输入", payload)
+        review_prompt = prompt_obj.get("chapterReviewPrompt") or prompt_obj.get("sectionReviewPrompt")  or ""
+
         ctx = build_ctx(payload)
         prompt = render_prompt(
-            section_review_prompt,
+            review_prompt,
             ctx,
             DEFAULT_PLACEHOLDER_MAP,
             keep_unknown=True,
         )
-        print("======小节评审prompt：", prompt)
+        print("======评审prompt：", prompt)
 
         image_map = build_image_map(payload)
         review = await self._run_review_once(
@@ -145,41 +144,6 @@ class ReviewAgent:
         review = correct_real_score(review)
         print("最终输出", review)
         return {"review": review}
-
-    async def review_chapter(self, payload: Dict) -> Dict:
-        prompt_obj = payload.get("prompt") or {}
-        chapter_review_prompt = prompt_obj.get("chapterReviewPrompt") or ""
-        # print("chapter_review_prompt:", chapter_review_prompt)
-        ctx = build_ctx(payload)
-        prompt = render_prompt(
-            chapter_review_prompt,
-            ctx,
-            DEFAULT_PLACEHOLDER_MAP,
-            keep_unknown=True,
-        )
-
-        image_map = build_image_map(payload)
-        review = await self._run_review_once(
-            prompt=prompt,
-            image_map=image_map,
-        )
-        review = review.get("review")
-        if not isinstance(review.get("score"), dict):
-            review = {
-                "score": {
-                    "real_score": review.get("score", ""),
-                    "ideal_score": "",
-                    "business_level": "",
-                    "business_describe": "",
-                },
-                "evaluate": review.get("evaluate", ""),
-                "suggestion": review.get("suggestion", []),
-                "to_do_list": review.get("to_do_list", []),
-            }
-            return {"review": review}
-        review = correct_real_score(review)
-        print("最终输出", review)
-        return{"review": review}
 
     def full_review(self, payload: Dict) -> Dict:
         prompt_obj = payload.get("prompt") or {}

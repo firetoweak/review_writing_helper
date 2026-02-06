@@ -174,10 +174,6 @@ class SectionReviewRequest(BaseModel):
     prompt: Optional[Prompts] = None
 
 
-class ReviewResponse(BaseModel):
-    review: ReviewDetail
-
-
 class ChapterReviewRequest(BaseModel):
     projectId: Optional[str] = None
     textList: List[TextList] = Field(default_factory=list)
