@@ -126,7 +126,6 @@ class ReviewAgent:
             prompt=prompt,
             image_map=image_map
         )
-        review = review.get("review")
         if not isinstance(review.get("score"), dict):
             review = {
                 "score": {
