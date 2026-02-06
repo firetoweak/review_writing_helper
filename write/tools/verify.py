@@ -228,8 +228,6 @@ class SmartVerifierCore:
                 title = "证据不足：建议补充数据/上传报告/改成弱断言"
                 html_output += f'<span markdown="span" style="{style_unknown}" title="{title}">{text}</span>'
 
-
-
         return html_output
     
     async def verify_diff_only_async(
@@ -238,7 +236,7 @@ class SmartVerifierCore:
         original: str,
         merged: str,
     ) -> str:
-        "只标识你新增了啥"
+        "只标识你修改了啥"
         plan = self.build_plan(original, merged)
         final_segments = plan["final_segments"]
         style_valid = "color: #15803d; background-color: #dcfce7; border-bottom: 2px solid #86efac;"
@@ -251,8 +249,8 @@ class SmartVerifierCore:
             elif t == "deleted":
                 html_output += f"<del>{text}</del>"
             elif t == "pending":
-                # 直接认为 pending 全是“新增”
-                html_output += f'<span markdown="span" style="{style_valid}" title="新增">{text}</span>'
+                # 直接认为 pending 全是“修改”
+                html_output += f'<span markdown="span" style="{style_valid}" title="修改">{text}</span>'
 
         return html_output
     
