@@ -254,8 +254,8 @@ class KBClient:
         self,
         store: Any,  # KBStore
         *,
-        # Server max-total-tokens=8192 -> keep a safety margin.
-        query_max_tokens: int = 7800,
+        # Embedding input max tokens = 2048 -> keep a safety margin in split path.
+        query_max_tokens: int = 2048,
         # Over-limit queries will be split into token chunks (multi-query).
         query_chunk_tokens: int = 1536,
         query_chunk_overlap: int = 128,
