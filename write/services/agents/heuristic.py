@@ -309,12 +309,15 @@ class HeuristicAgent:
     ) -> Optional[Dict[str, Any]]:
         if not payload.get("useKB", True):
             return snapshot
-        if not self._kb_client or not project_id or not query_text:
+        if not self._kb_client or not project_id:
             return snapshot
 
         section_id = str(payload.get("sectionId") or ctx.get("sectionId") or "").strip()
         section_title = str(payload.get("sectionTitle") or ctx.get("sectionTitle") or "").strip()
 
+        if not section_id and not query_text:
+            return snapshot
+        
         context_fingerprint = self._build_context_fingerprint(
             section_id=section_id,
             query_text=query_text,
@@ -322,6 +325,7 @@ class HeuristicAgent:
         )
 
         if hasattr(self._kb_client, "search_section") and section_id:
+            print("=======执行关键词多路检索========")
             kb_snapshot = await asyncio.to_thread(
                 self._kb_client.search_section,
                 project_id=project_id,
@@ -341,6 +345,7 @@ class HeuristicAgent:
             ).strip()
             image_maps = kb_snapshot.get("image_maps") or {}
         else:
+            print("=======执行普通检索========")
             hits, image_maps = await asyncio.to_thread(
                 self._kb_client.search,
                 project_id=project_id,
