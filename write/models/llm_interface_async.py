@@ -174,11 +174,11 @@ def build_messages(
     # print("len(system_prompt)", len(system_prompt or ""))
     # print("system_prompt:", system_prompt)
     # print("messages:", messages)
-    
+
     if not system_prompt:
         system_prompt = SYS_PROMPT_TEMPLATE
-    system_prompt = system_prompt + RULE_SYS_PROMPT
-    
+    system_prompt = system_prompt + RULE_SYS_PROMPT    
+
     out.append(SystemMessage(content=system_prompt))
 
     # ✅ context：只有在确实能匹配到映射时才走多模态

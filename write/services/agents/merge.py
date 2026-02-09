@@ -99,7 +99,7 @@ class MergeAgent:
                 evidence=evidence_text,
                 model=correct_model,
                 check_batch_fn=my_check_batch,
-                batch_size=10,
+                batch_size=16,
                 max_inflight_batches=4
             )
             correct_text = replace_image_tags_with_markdown(correct_text, image_maps)
