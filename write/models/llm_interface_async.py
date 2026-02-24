@@ -27,10 +27,12 @@ class LLMConfig:
 
 
 def get_llm_config() -> LLMConfig:
+    route = settings.model_route
+    provider = route.qwen if route.default_provider == "qwen" else route.local
     return LLMConfig(
-        base_url=settings.chatllm.base_url,
-        api_key=settings.chatllm.api_key or "EMPTY",
-        model=settings.chatllm.model,
+        base_url=provider.base_url,
+        api_key=provider.api_key or "EMPTY",
+        model=provider.model,
     )
 
 
@@ -53,15 +55,18 @@ def is_vlm_configured() -> bool:
 def build_chat_model(
     *, streaming: bool, multimodal: bool = True, model_name: Optional[str] = None
 ) -> ChatOpenAI:
-    model = settings.chatvlm
-    if model_name == "vlm_a3b_Thinking":
-        model = settings.models["vlm_a3b_Thinking"]
+    if multimodal:
+        model = settings.chatvlm
+        if model_name == "vlm_a3b_Thinking":
+            model = settings.models["vlm_a3b_Thinking"]
+        cfg = LLMConfig(
+            base_url=model.base_url,
+            api_key=model.api_key or "EMPTY",
+            model=model.model,
+        )
+    else:
+        cfg = get_llm_config()
 
-    cfg = LLMConfig(
-        base_url=model.base_url,
-        api_key=model.api_key or "EMPTY",
-        model=model.model,
-    )
     return ChatOpenAI(
         model=cfg.model,
         base_url=cfg.base_url,

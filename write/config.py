@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Any, Dict
+from typing import Optional, Any, Dict, Literal
 import os
 
 # 尝试导入 PyYAML
@@ -98,6 +98,13 @@ class ChatLLMSettings:
     api_key: str = ""
     model: str = ""
 
+
+@dataclass(frozen=True)
+class ModelRouteSettings:
+    default_provider: Literal["qwen", "local"] = "qwen"
+    qwen: ChatLLMSettings = field(default_factory=ChatLLMSettings)
+    local: ChatLLMSettings = field(default_factory=ChatLLMSettings)
+
 @dataclass(frozen=True)
 class ModelEndpoint:
     base_url: str = ""
@@ -116,6 +123,7 @@ class EmbeddingSettings:
 class Settings:
     chatvlm: ChatVLMSettings
     chatllm: ChatLLMSettings
+    model_route: ModelRouteSettings
     embedding: EmbeddingSettings
     models: Dict[str, ModelEndpoint] = field(default_factory=dict)  # ✅ 默认空
 
@@ -134,6 +142,28 @@ def load_settings(yaml_path: Optional[str] = None) -> Settings:
         base_url=str(_env_or(_get(cfg, "chatllm", "base_url", default=""), "CHATLLM_BASE_URL", "")),
         api_key=str(_env_or(_get(cfg, "chatllm", "api_key", default=""), "CHATLLM_API_KEY", "")),
         model=str(_env_or(_get(cfg, "chatllm", "model", default=""), "CHATLLM_MODEL", "")),
+    )
+
+    default_provider = str(cfg.get("default_model_provider") or "qwen").strip().lower()
+    if default_provider not in ("qwen", "local"):
+        default_provider = "qwen"
+
+    qwen = ChatLLMSettings(
+        base_url=str(_env_or(_get(cfg, "model_providers", "qwen", "base_url", default=""), "QWEN_BASE_URL", chatllm.base_url)),
+        api_key=str(_env_or(_get(cfg, "model_providers", "qwen", "api_key", default=""), "QWEN_API_KEY", chatllm.api_key)),
+        model=str(_env_or(_get(cfg, "model_providers", "qwen", "model", default=""), "QWEN_MODEL", chatllm.model)),
+    )
+
+    local = ChatLLMSettings(
+        base_url=str(_env_or(_get(cfg, "model_providers", "local", "base_url", default=""), "LOCAL_BASE_URL", chatllm.base_url)),
+        api_key=str(_env_or(_get(cfg, "model_providers", "local", "api_key", default=""), "LOCAL_API_KEY", chatllm.api_key)),
+        model=str(_env_or(_get(cfg, "model_providers", "local", "model", default=""), "LOCAL_MODEL", chatllm.model)),
+    )
+
+    model_route = ModelRouteSettings(
+        default_provider=default_provider,
+        qwen=qwen,
+        local=local,
     )
 
     embedding = EmbeddingSettings(
@@ -155,7 +185,7 @@ def load_settings(yaml_path: Optional[str] = None) -> Settings:
             )
 
 
-    return Settings(chatvlm=chatvlm, chatllm=chatllm, embedding=embedding, models=models)
+    return Settings(chatvlm=chatvlm, chatllm=chatllm, model_route=model_route, embedding=embedding, models=models)
 
 
 # 全局 settings：真正从 config.yaml 来
