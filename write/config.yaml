@@ -15,6 +15,11 @@ chatllm:
   api_key:
   model:
 
+
+embedding:
+  base_url: http://127.0.0.1:30025
+  model: /home/netzone22/data/LLM/Qwen3-Embedding-8B
+
 chatvlm:
   base_url: http://localhost:30011/v1
   api_key: null
