@@ -7,7 +7,7 @@ from infra.persistence.checkpointer_pg import (
     close_checkpointer,
     ensure_checkpoint_tables,
 )
-from config import load_config
+from config import load_config, settings
 from services.agents.heuristic import HeuristicAgent
 from services.agents.help import HelpAgent
 
@@ -30,8 +30,6 @@ from app.container import AppContext
 
 _KB_BASE_DIR = "/home/netzone22/liuhao/project/ai_writer_agent/chromaKB"
 _KB_COLLECTION = "materials"
-_EMBEDDING_URL = "http://127.0.0.1:30025/v1/embeddings"
-_EMBEDDING_MODEL = "/home/netzone22/data/LLM/Qwen3-Embedding-8B"
 
 
 @asynccontextmanager
@@ -47,8 +45,8 @@ async def lifespan(app: FastAPI):
     store = KBStore(
         base_dir=_KB_BASE_DIR,
         collection_name=_KB_COLLECTION,
-        embedding_url=_EMBEDDING_URL,
-        embedding_model=_EMBEDDING_MODEL,
+        embedding_url=f"{settings.embedding.base_url.rstrip('/')}/v1/embeddings",
+        embedding_model=settings.embedding.model,
     )
     kb_client = KBClient(store)    
     

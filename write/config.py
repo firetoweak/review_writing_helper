@@ -107,9 +107,16 @@ class ModelEndpoint:
 
 
 @dataclass(frozen=True)
+class EmbeddingSettings:
+    base_url: str = ""
+    model: str = ""
+
+
+@dataclass(frozen=True)
 class Settings:
     chatvlm: ChatVLMSettings
     chatllm: ChatLLMSettings
+    embedding: EmbeddingSettings
     models: Dict[str, ModelEndpoint] = field(default_factory=dict)  # ✅ 默认空
 
 
@@ -128,6 +135,11 @@ def load_settings(yaml_path: Optional[str] = None) -> Settings:
         api_key=str(_env_or(_get(cfg, "chatllm", "api_key", default=""), "CHATLLM_API_KEY", "")),
         model=str(_env_or(_get(cfg, "chatllm", "model", default=""), "CHATLLM_MODEL", "")),
     )
+
+    embedding = EmbeddingSettings(
+        base_url=str(_env_or(_get(cfg, "embedding", "base_url", default=""), "EMBEDDING_BASE_URL", "")),
+        model=str(_env_or(_get(cfg, "embedding", "model", default=""), "EMBEDDING_MODEL", "")),
+    )
     # ✅ 新增：读取 models 路由表
     models_raw = cfg.get("models") or {}
     models: Dict[str, ModelEndpoint] = {}
@@ -143,7 +155,7 @@ def load_settings(yaml_path: Optional[str] = None) -> Settings:
             )
 
 
-    return Settings(chatvlm=chatvlm, chatllm=chatllm, models=models)
+    return Settings(chatvlm=chatvlm, chatllm=chatllm, embedding=embedding, models=models)
 
 
 # 全局 settings：真正从 config.yaml 来

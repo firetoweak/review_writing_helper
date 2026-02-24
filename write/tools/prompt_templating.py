@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Literal
 from tools.context_tools import retrieve_history_context_for_textlist, EmbeddingClient, normalize_neighbors_map
+from config import settings
 
 # 只匹配 {title} 这类占位符（不匹配 { "a": 1 }）    
 _VAR = re.compile(r"\{([a-zA-Z_]\w*)\}")
@@ -609,8 +610,8 @@ class PromptContextBuilder:
 
 
                 ec = EmbeddingClient(
-                    base_url="http://127.0.0.1:30025",
-                    model="/home/netzone22/data/LLM/Qwen3-Embedding-8B",
+                    base_url=settings.embedding.base_url,
+                    model=settings.embedding.model,
                 )
 
                 # ✅ extra_intent 建议塞 helpText/qa/用户改动点（可为空）
