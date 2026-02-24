@@ -16,6 +16,18 @@ chatllm:
   model:
 
 
+default_model_provider: qwen
+
+model_providers:
+  qwen:
+    base_url: 
+    api_key:
+    model:
+  local:
+    base_url: 
+    api_key:
+    model:
+
 embedding:
   base_url: http://127.0.0.1:30025
   model: /home/netzone22/data/LLM/Qwen3-Embedding-8B
